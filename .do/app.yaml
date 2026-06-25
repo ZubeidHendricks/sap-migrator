@@ -3,19 +3,17 @@ region: nyc
 
 services:
 - name: web
-  image:
-    registry_type: DOCR
-    registry: carta-ta
-    repository: sap-migrator
-    tag: latest
-    deploy_on_push:
-      enabled: true
+  github:
+    repo: ZubeidHendricks/sap-migrator
+    branch: main
+    deploy_on_push: true
+  dockerfile_path: Dockerfile
   http_port: 3000
   instance_size_slug: apps-s-1vcpu-0.5gb
   instance_count: 1
   health_check:
     http_path: /
-    initial_delay_seconds: 30
+    initial_delay_seconds: 60
     period_seconds: 15
     failure_threshold: 5
   envs:
@@ -32,21 +30,4 @@ services:
     scope: RUN_AND_BUILD_TIME
   - key: NODE_ENV
     value: production
-    scope: RUN_AND_BUILD_TIME
-
-jobs:
-- name: migrate
-  kind: PRE_DEPLOY
-  image:
-    registry_type: DOCR
-    registry: carta-ta
-    repository: sap-migrator
-    tag: latest
-  run_command: npx prisma db push --skip-generate
-  instance_size_slug: apps-s-1vcpu-0.5gb
-  instance_count: 1
-  envs:
-  - key: DATABASE_URL
-    value: "SET_IN_DO_DASHBOARD"
-    type: SECRET
     scope: RUN_AND_BUILD_TIME
