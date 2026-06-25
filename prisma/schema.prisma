@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MIGRATOR
+  VIEWER
+}
+
+enum MigrationApproach {
+  STAGING_TABLES
+  DIRECT_TRANSFER
+}
+
+enum ProjectStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum RunType {
+  SIMULATION
+  MIGRATION
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum RecordStatus {
+  SUCCESS
+  ERROR
+  WARNING
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  plan      String    @default("starter")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  users     User[]
+  projects  Project[]
+}
+
+model User {
+  id             String       @id @default(cuid())
+  name           String?
+  email          String       @unique
+  emailVerified  DateTime?
+  image          String?
+  password       String?
+  role           Role         @default(MIGRATOR)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  accounts       Account[]
+  sessions       Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Project {
+  id             String            @id @default(cuid())
+  name           String
+  description    String?
+  approach       MigrationApproach
+  status         ProjectStatus     @default(DRAFT)
+  sourceSystem   String?
+  targetSystem   String?
+  goLiveDate     DateTime?
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  objects        ProjectObject[]
+  runs           MigrationRun[]
+}
+
+model ProjectObject {
+  id          String              @id @default(cuid())
+  projectId   String
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  objectKey   String
+  objectName  String
+  category    String
+  status      String              @default("PENDING")
+  recordCount Int?
+  mappings    ValueMapping[]
+  templates   MigrationTemplate[]
+  runRecords  RunRecord[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([projectId, objectKey])
+}
+
+model ValueMapping {
+  id              String        @id @default(cuid())
+  projectObjectId String
+  projectObject   ProjectObject @relation(fields: [projectObjectId], references: [id], onDelete: Cascade)
+  fieldName       String
+  fieldLabel      String?
+  sourceValue     String
+  targetValue     String
+  createdAt       DateTime      @default(now())
+}
+
+model MigrationTemplate {
+  id               String        @id @default(cuid())
+  projectObjectId  String
+  projectObject    ProjectObject @relation(fields: [projectObjectId], references: [id], onDelete: Cascade)
+  filename         String
+  fileSize         Int
+  rowCount         Int?
+  status           String        @default("UPLOADED")
+  validationErrors Json?
+  createdAt        DateTime      @default(now())
+}
+
+model MigrationRun {
+  id           String       @id @default(cuid())
+  projectId    String
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type         RunType
+  status       RunStatus    @default(PENDING)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  totalRecords Int          @default(0)
+  successCount Int          @default(0)
+  errorCount   Int          @default(0)
+  warningCount Int          @default(0)
+  records      RunRecord[]
+  createdAt    DateTime     @default(now())
+}
+
+model RunRecord {
+  id              String        @id @default(cuid())
+  runId           String
+  run             MigrationRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  projectObjectId String
+  projectObject   ProjectObject @relation(fields: [projectObjectId], references: [id])
+  recordKey       String
+  status          RecordStatus
+  message         String?
+  rawData         Json?
+  createdAt       DateTime      @default(now())
+}
