@@ -1,21 +1,89 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth-options'
-import { prisma } from '@/lib/prisma'
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Building2, Users, Shield } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import { Building2, Users, Shield, Plus, Trash2, Loader2, Copy, CheckCircle } from 'lucide-react'
 
-export default async function SettingsPage() {
-  const session = await getServerSession(authOptions)
+interface Member { id: string; name: string | null; email: string; role: string; createdAt: string }
+
+export default function SettingsPage() {
+  const { data: session } = useSession()
+  const [members, setMembers] = useState<Member[]>([])
+  const [loading, setLoading] = useState(true)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'MIGRATOR' })
+  const [inviting, setInviting] = useState(false)
+  const [inviteResult, setInviteResult] = useState<{ email: string; tempPassword: string } | null>(null)
+  const [inviteError, setInviteError] = useState('')
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const isAdmin = session?.user.role === 'ADMIN'
+
+  useEffect(() => {
+    fetch('/api/organizations/members')
+      .then((r) => r.json())
+      .then(setMembers)
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault()
+    setInviting(true)
+    setInviteError('')
+    const res = await fetch('/api/organizations/members', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(inviteForm),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setInviteError(data.error || 'Failed to invite member')
+      setInviting(false)
+      return
+    }
+    setInviteResult({ email: data.email, tempPassword: data.tempPassword })
+    setMembers((m) => [...m, data])
+    setInviting(false)
+    setInviteForm({ name: '', email: '', role: 'MIGRATOR' })
+  }
+
+  async function handleRemove(userId: string) {
+    setRemovingId(userId)
+    await fetch('/api/organizations/members', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+    setMembers((m) => m.filter((u) => u.id !== userId))
+    setRemovingId(null)
+  }
+
+  function copyPassword(pwd: string) {
+    navigator.clipboard.writeText(pwd)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function closeInviteDialog() {
+    setInviteOpen(false)
+    setInviteResult(null)
+    setInviteError('')
+  }
+
   if (!session) return null
-
-  const [org, users] = await Promise.all([
-    prisma.organization.findUnique({ where: { id: session.user.organizationId } }),
-    prisma.user.findMany({
-      where: { organizationId: session.user.organizationId },
-      orderBy: { createdAt: 'asc' },
-    }),
-  ])
 
   return (
     <div className="p-8 max-w-3xl">
@@ -25,6 +93,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Organization */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -37,55 +106,167 @@ export default async function SettingsPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Name</p>
-                <p className="text-sm font-medium text-gray-900">{org?.name}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Slug</p>
-                <p className="text-sm font-mono text-gray-700">{org?.slug}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Plan</p>
-                <Badge variant="secondary" className="capitalize">{org?.plan}</Badge>
+                <p className="text-sm font-medium text-gray-900">{session.user.organizationName}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Members</p>
-                <p className="text-sm font-medium text-gray-900">{users.length}</p>
+                <p className="text-sm font-medium text-gray-900">{members.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Team members */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Users className="w-4 h-4 text-[#1e3a5f]" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-[#1e3a5f]" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Team Members</CardTitle>
+                  <CardDescription>Users with access to this workspace</CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-base">Team Members</CardTitle>
-                <CardDescription>Users with access to this workspace</CardDescription>
-              </div>
+              {isAdmin && (
+                <Dialog open={inviteOpen} onOpenChange={(open) => { if (!open) closeInviteDialog(); else setInviteOpen(true) }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="bg-[#1e3a5f] hover:bg-[#2a4f7c] gap-2">
+                      <Plus className="w-3.5 h-3.5" /> Invite Member
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Invite Team Member</DialogTitle>
+                      <DialogDescription>
+                        Add a new member to your workspace. A temporary password will be generated for them to log in.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    {inviteResult ? (
+                      <div className="space-y-4 pt-2">
+                        <div className="flex items-center gap-2 text-green-700 bg-green-50 p-3 rounded-lg">
+                          <CheckCircle className="w-4 h-4 shrink-0" />
+                          <p className="text-sm font-medium">{inviteResult.email} has been added</p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm text-gray-600">Share these credentials with the new member:</p>
+                          <div className="bg-gray-50 rounded-lg p-4 space-y-2 font-mono text-sm">
+                            <p><span className="text-gray-400">Email:</span> {inviteResult.email}</p>
+                            <div className="flex items-center justify-between">
+                              <p><span className="text-gray-400">Password:</span> {inviteResult.tempPassword}</p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 gap-1.5 text-xs"
+                                onClick={() => copyPassword(inviteResult.tempPassword)}
+                              >
+                                {copied ? <CheckCircle className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                {copied ? 'Copied' : 'Copy'}
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-400">Ask them to change their password after first login.</p>
+                        </div>
+                        <Button className="w-full" variant="outline" onClick={closeInviteDialog}>Done</Button>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleInvite} className="space-y-4 pt-2">
+                        {inviteError && (
+                          <Alert variant="destructive">
+                            <AlertDescription>{inviteError}</AlertDescription>
+                          </Alert>
+                        )}
+                        <div className="space-y-2">
+                          <Label>Full Name</Label>
+                          <Input
+                            placeholder="Jane Smith"
+                            value={inviteForm.name}
+                            onChange={(e) => setInviteForm((f) => ({ ...f, name: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Email Address</Label>
+                          <Input
+                            type="email"
+                            placeholder="jane@company.com"
+                            value={inviteForm.email}
+                            onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Role</Label>
+                          <Select
+                            value={inviteForm.role}
+                            onValueChange={(v) => setInviteForm((f) => ({ ...f, role: v }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ADMIN">Admin — full access</SelectItem>
+                              <SelectItem value="MIGRATOR">Migrator — create & run migrations</SelectItem>
+                              <SelectItem value="VIEWER">Viewer — read only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                          <Button type="button" variant="outline" className="flex-1" onClick={closeInviteDialog}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" className="flex-1 bg-[#1e3a5f] hover:bg-[#2a4f7c]" disabled={inviting}>
+                            {inviting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Inviting…</> : 'Invite Member'}
+                          </Button>
+                        </div>
+                      </form>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </CardHeader>
           <CardContent>
-            <div className="divide-y">
-              {users.map((u) => (
-                <div key={u.id} className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{u.name}</p>
-                    <p className="text-xs text-gray-400">{u.email}</p>
+            {loading ? (
+              <div className="py-4 text-center text-sm text-gray-400">Loading members…</div>
+            ) : (
+              <div className="divide-y">
+                {members.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{u.name ?? '—'}</p>
+                      <p className="text-xs text-gray-400">{u.email}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <RoleBadge role={u.role} />
+                      {isAdmin && u.id !== session.user.id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-gray-400 hover:text-red-500"
+                          onClick={() => handleRemove(u.id)}
+                          disabled={removingId === u.id}
+                        >
+                          {removingId === u.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Trash2 className="w-3.5 h-3.5" />}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <RoleBadge role={u.role} />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
+        {/* Your account */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -121,11 +302,14 @@ export default async function SettingsPage() {
 }
 
 function RoleBadge({ role }: { role: string }) {
-  const map: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'info' }> = {
-    ADMIN: { label: 'Admin', variant: 'default' },
-    MIGRATOR: { label: 'Migrator', variant: 'info' },
-    VIEWER: { label: 'Viewer', variant: 'secondary' },
+  const map: Record<string, string> = {
+    ADMIN: 'bg-[#1e3a5f] text-white',
+    MIGRATOR: 'bg-blue-100 text-blue-700',
+    VIEWER: 'bg-gray-100 text-gray-600',
   }
-  const s = map[role] ?? { label: role, variant: 'secondary' }
-  return <Badge variant={s.variant as any}>{s.label}</Badge>
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${map[role] ?? 'bg-gray-100 text-gray-600'}`}>
+      {role.charAt(0) + role.slice(1).toLowerCase()}
+    </span>
+  )
 }
