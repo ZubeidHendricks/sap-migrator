@@ -83,7 +83,7 @@ const WORKFLOW = [
     title: 'Simulate, Fix, Migrate',
     subtitle: 'Validate before committing',
     body: `Run a Simulation first — this validates every record against SAP's rules without writing a single byte to the database. The result shows you exactly which records succeed, which have errors, and which have warnings. Fix errors, re-run until clean. Then execute the real Migration run.`,
-    detail: 'Simulation is equivalent to SAP's TESTRUN API parameter. Error records can be exported as a CSV correction file, fixed, and re-uploaded. The run history is preserved for audit.',
+    detail: "Simulation is equivalent to SAP's TESTRUN API parameter. Error records can be exported as a CSV correction file, fixed, and re-uploaded. The run history is preserved for audit.",
   },
 ]
 
