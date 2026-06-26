@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { sendInviteEmail } from '@/lib/email'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -28,7 +29,6 @@ export async function POST(req: Request) {
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
 
-  // Generate a temporary password the admin can share
   const tempPassword = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10)
   const hashed = await bcrypt.hash(tempPassword, 12)
 
@@ -37,11 +37,22 @@ export async function POST(req: Request) {
       name,
       email,
       password: hashed,
+      mustChangePassword: true,
       role: role ?? 'MIGRATOR',
       organizationId: session.user.organizationId,
     },
     select: { id: true, name: true, email: true, role: true, createdAt: true },
   })
+
+  const appUrl = process.env.NEXTAUTH_URL || 'https://sap-migrator-5vybv.ondigitalocean.app'
+  await sendInviteEmail({
+    to: email,
+    name,
+    inviterName: session.user.name ?? session.user.email ?? 'Your admin',
+    orgName: session.user.organizationName,
+    tempPassword,
+    loginUrl: `${appUrl}/login`,
+  }).catch(() => {})
 
   return NextResponse.json({ ...user, tempPassword }, { status: 201 })
 }

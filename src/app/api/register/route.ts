@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { slugify } from '@/lib/utils'
+import { sendWelcomeEmail } from '@/lib/email'
 
 export async function POST(req: Request) {
   try {
@@ -35,6 +36,14 @@ export async function POST(req: Request) {
         organizationId: org.id,
       },
     })
+
+    const appUrl = process.env.NEXTAUTH_URL || 'https://sap-migrator-5vybv.ondigitalocean.app'
+    await sendWelcomeEmail({
+      to: email,
+      name,
+      orgName: organizationName,
+      loginUrl: `${appUrl}/dashboard`,
+    }).catch(() => {})
 
     return NextResponse.json({ id: user.id, email: user.email }, { status: 201 })
   } catch {

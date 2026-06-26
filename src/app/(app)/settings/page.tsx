@@ -14,7 +14,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Building2, Users, Shield, Plus, Trash2, Loader2, Copy, CheckCircle } from 'lucide-react'
+import { Building2, Users, Shield, Plus, Trash2, Loader2, Copy, CheckCircle, KeyRound } from 'lucide-react'
 
 interface Member { id: string; name: string | null; email: string; role: string; createdAt: string }
 
@@ -29,6 +29,10 @@ export default function SettingsPage() {
   const [inviteError, setInviteError] = useState('')
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwError, setPwError] = useState('')
+  const [pwSuccess, setPwSuccess] = useState(false)
 
   const isAdmin = session?.user.role === 'ADMIN'
 
@@ -75,6 +79,24 @@ export default function SettingsPage() {
     navigator.clipboard.writeText(pwd)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError('')
+    setPwSuccess(false)
+    if (pwForm.next !== pwForm.confirm) { setPwError('New passwords do not match'); return }
+    if (pwForm.next.length < 8) { setPwError('Password must be at least 8 characters'); return }
+    setPwSaving(true)
+    const res = await fetch('/api/auth/password', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setPwError(data.error || 'Failed to update password') }
+    else { setPwSuccess(true); setPwForm({ current: '', next: '', confirm: '' }) }
+    setPwSaving(false)
   }
 
   function closeInviteDialog() {
@@ -263,6 +285,48 @@ export default function SettingsPage() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Change password */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                <KeyRound className="w-4 h-4 text-[#1e3a5f]" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Change Password</CardTitle>
+                <CardDescription>Update your login password</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePasswordChange} className="space-y-3 max-w-sm">
+              {pwError && (
+                <Alert variant="destructive"><AlertDescription>{pwError}</AlertDescription></Alert>
+              )}
+              {pwSuccess && (
+                <div className="flex items-center gap-2 text-green-700 bg-green-50 p-3 rounded-lg text-sm">
+                  <CheckCircle className="w-4 h-4 shrink-0" /> Password updated successfully
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label>Current Password</Label>
+                <Input type="password" value={pwForm.current} onChange={(e) => setPwForm((f) => ({ ...f, current: e.target.value }))} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label>New Password</Label>
+                <Input type="password" value={pwForm.next} onChange={(e) => setPwForm((f) => ({ ...f, next: e.target.value }))} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Confirm New Password</Label>
+                <Input type="password" value={pwForm.confirm} onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))} required />
+              </div>
+              <Button type="submit" className="bg-[#1e3a5f] hover:bg-[#2a4f7c]" disabled={pwSaving}>
+                {pwSaving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : 'Update Password'}
+              </Button>
+            </form>
           </CardContent>
         </Card>
 
