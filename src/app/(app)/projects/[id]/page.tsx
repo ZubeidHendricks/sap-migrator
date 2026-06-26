@@ -13,12 +13,15 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
+import { SettingsIcon } from 'lucide-react'
+
 const navCards = [
   { href: 'objects', label: 'Migration Objects', icon: Layers, desc: 'Select SAP objects to migrate from the catalog' },
   { href: 'mapping', label: 'Value Mapping', icon: MapPin, desc: 'Map source values to SAP target values' },
   { href: 'templates', label: 'Templates', icon: FileSpreadsheet, desc: 'Download XML templates and upload filled data' },
   { href: 'runs', label: 'Run Center', icon: Play, desc: 'Simulate and execute migration runs' },
   { href: 'connection', label: 'SAP Connection', icon: Server, desc: 'Store connection details for your SAP target system' },
+  { href: 'settings', label: 'Project Settings', icon: SettingsIcon, desc: 'Edit name, status, go-live date and export data' },
 ]
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
@@ -121,7 +124,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
       </Card>
 
       {/* Nav cards */}
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
         {navCards.map((c) => (
           <Link key={c.href} href={`/projects/${project.id}/${c.href}`}>
             <Card className="hover:shadow-md hover:border-[#1e3a5f]/30 transition-all cursor-pointer group h-full">

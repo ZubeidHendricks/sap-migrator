@@ -44,13 +44,14 @@ enum RecordStatus {
 }
 
 model Organization {
-  id        String    @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
-  slug      String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  slug      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   users     User[]
   projects  Project[]
+  auditLogs AuditLog[]
 }
 
 model User {
@@ -68,6 +69,7 @@ model User {
   updatedAt      DateTime     @updatedAt
   accounts       Account[]
   sessions       Session[]
+  auditLogs      AuditLog[]
 }
 
 model Account {
@@ -120,6 +122,20 @@ model Project {
   objects        ProjectObject[]
   runs           MigrationRun[]
   sapConnection  SapConnection?
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  action         String
+  entityType     String?
+  entityId       String?
+  entityName     String?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
 }
 
 model SapConnection {

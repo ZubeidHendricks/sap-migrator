@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   ArrowLeft, Play, TestTube, CheckCircle, XCircle, AlertTriangle,
-  Loader2, Download, RefreshCw, Clock,
+  Loader2, Download, RefreshCw, Clock, GitCompareArrows,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
@@ -37,6 +37,9 @@ export default function RunsPage() {
   const [launching, setLaunching] = useState(false)
   const [selectedRun, setSelectedRun] = useState<Run | null>(null)
   const [activeTab, setActiveTab] = useState('all')
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareA, setCompareA] = useState<Run | null>(null)
+  const [compareB, setCompareB] = useState<Run | null>(null)
 
   const fetchRuns = useCallback(async () => {
     const res = await fetch(`/api/projects/${params.id}/runs`)
@@ -102,9 +105,21 @@ export default function RunsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Run Center</h1>
           <p className="text-gray-500 text-sm">Simulate to validate, then execute your migration</p>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchRuns} className="h-9 w-9">
-          <RefreshCw className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {runs.filter((r) => r.status === 'COMPLETED').length >= 2 && (
+            <Button
+              variant={compareMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => { setCompareMode((c) => !c); setCompareA(null); setCompareB(null) }}
+              className={compareMode ? 'bg-[#1e3a5f]' : ''}
+            >
+              <GitCompareArrows className="w-4 h-4 mr-1.5" /> Compare
+            </Button>
+          )}
+          <Button variant="outline" size="icon" onClick={fetchRuns} className="h-9 w-9">
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Launch buttons */}
@@ -160,6 +175,63 @@ export default function RunsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Compare panel */}
+      {compareMode && (
+        <Card className="mb-8 border-[#1e3a5f]/20 bg-blue-50/30">
+          <CardHeader>
+            <CardTitle className="text-sm text-[#1e3a5f] flex items-center gap-2">
+              <GitCompareArrows className="w-4 h-4" /> Run Comparison
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-gray-500 mb-4">Select two completed runs to compare results side by side.</p>
+            <div className="grid grid-cols-2 gap-4">
+              {[{ label: 'Run A', val: compareA, set: setCompareA }, { label: 'Run B', val: compareB, set: setCompareB }].map(({ label, val, set }) => (
+                <div key={label}>
+                  <p className="text-xs font-semibold text-gray-500 mb-2">{label}</p>
+                  <div className="space-y-1.5">
+                    {runs.filter((r) => r.status === 'COMPLETED').map((r) => (
+                      <button key={r.id} onClick={() => set(r)} className={`w-full text-left px-3 py-2 rounded border text-xs transition-colors ${val?.id === r.id ? 'border-[#1e3a5f] bg-white font-medium' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                        <span className="text-gray-700">{r.type === 'SIMULATION' ? 'Sim' : 'Mig'}</span>
+                        <span className="text-gray-400 ml-2">{formatDate(r.createdAt)}</span>
+                        <span className="ml-2 text-green-600">{r.successCount}✓</span>
+                        {r.errorCount > 0 && <span className="ml-1 text-red-500">{r.errorCount}✗</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {compareA && compareB && (
+              <div className="mt-6 grid grid-cols-2 gap-4">
+                {[compareA, compareB].map((r, i) => (
+                  <div key={r.id} className="bg-white rounded-lg border p-4">
+                    <p className="text-xs font-bold text-gray-500 mb-3">{i === 0 ? 'Run A' : 'Run B'} — {r.type === 'SIMULATION' ? 'Simulation' : 'Migration'}</p>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-green-50 rounded p-2"><p className="text-lg font-bold text-green-700">{r.successCount}</p><p className="text-xs text-green-600">Success</p></div>
+                      <div className="bg-red-50 rounded p-2"><p className="text-lg font-bold text-red-700">{r.errorCount}</p><p className="text-xs text-red-600">Errors</p></div>
+                      <div className="bg-yellow-50 rounded p-2"><p className="text-lg font-bold text-yellow-700">{r.warningCount}</p><p className="text-xs text-yellow-600">Warnings</p></div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs text-gray-400 mb-1"><span>Success rate</span><span>{pct(r)}%</span></div>
+                      <Progress value={pct(r)} className="h-1.5" />
+                    </div>
+                    {i === 1 && compareA && (
+                      <div className="mt-3 pt-3 border-t text-xs space-y-1">
+                        <p className="font-semibold text-gray-500 mb-1.5">vs Run A</p>
+                        <DiffStat label="Errors" a={compareA.errorCount} b={r.errorCount} lower />
+                        <DiffStat label="Warnings" a={compareA.warningCount} b={r.warningCount} lower />
+                        <DiffStat label="Success rate" a={pct(compareA)} b={pct(r)} suffix="%" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Run list + detail */}
       <div className="flex gap-6">
@@ -336,6 +408,19 @@ function RecordTable({ records }: { records: RunRecord[] }) {
         ))}
       </TableBody>
     </Table>
+  )
+}
+
+function DiffStat({ label, a, b, lower, suffix = '' }: { label: string; a: number; b: number; lower?: boolean; suffix?: string }) {
+  const diff = b - a
+  const better = lower ? diff < 0 : diff > 0
+  return (
+    <div className="flex justify-between">
+      <span className="text-gray-400">{label}</span>
+      <span className={diff === 0 ? 'text-gray-400' : better ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
+        {diff > 0 ? '+' : ''}{diff}{suffix}
+      </span>
+    </div>
   )
 }
 

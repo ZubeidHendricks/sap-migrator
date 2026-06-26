@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/layout/sidebar'
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
+  if ((session.user as { mustChangePassword?: boolean }).mustChangePassword) redirect('/change-password')
 
   return (
     <div className="flex min-h-screen bg-gray-50">

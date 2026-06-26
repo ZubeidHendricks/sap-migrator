@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
+import { logAudit } from '@/lib/audit'
 
 async function getProject(id: string, orgId: string) {
   return prisma.project.findFirst({ where: { id, organizationId: orgId } })
@@ -15,9 +16,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     where: { id: params.id, organizationId: session.user.organizationId },
     include: {
       objects: {
-        include: {
-          _count: { select: { mappings: true, templates: true, runRecords: true } },
-        },
+        include: { _count: { select: { mappings: true, templates: true, runRecords: true } } },
         orderBy: { createdAt: 'asc' },
       },
       runs: { orderBy: { createdAt: 'desc' }, take: 5 },
@@ -39,12 +38,23 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const updated = await prisma.project.update({
     where: { id: params.id },
     data: {
-      name: body.name ?? project.name,
-      description: body.description ?? project.description,
-      status: body.status ?? project.status,
-      sourceSystem: body.sourceSystem ?? project.sourceSystem,
-      targetSystem: body.targetSystem ?? project.targetSystem,
+      ...(body.name !== undefined && { name: body.name }),
+      ...(body.description !== undefined && { description: body.description }),
+      ...(body.status !== undefined && { status: body.status }),
+      ...(body.sourceSystem !== undefined && { sourceSystem: body.sourceSystem }),
+      ...(body.targetSystem !== undefined && { targetSystem: body.targetSystem }),
+      ...(body.goLiveDate !== undefined && { goLiveDate: body.goLiveDate ? new Date(body.goLiveDate) : null }),
     },
+  })
+
+  await logAudit({
+    organizationId: session.user.organizationId,
+    userId: session.user.id,
+    action: 'project.updated',
+    entityType: 'project',
+    entityId: project.id,
+    entityName: updated.name,
+    metadata: body,
   })
 
   return NextResponse.json(updated)
@@ -56,6 +66,15 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   const project = await getProject(params.id, session.user.organizationId)
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await logAudit({
+    organizationId: session.user.organizationId,
+    userId: session.user.id,
+    action: 'project.deleted',
+    entityType: 'project',
+    entityId: project.id,
+    entityName: project.name,
+  })
 
   await prisma.project.delete({ where: { id: params.id } })
   return NextResponse.json({ success: true })

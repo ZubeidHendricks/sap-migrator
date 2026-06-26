@@ -36,6 +36,7 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           organizationId: user.organizationId,
           organizationName: user.organization.name,
+          mustChangePassword: user.mustChangePassword,
         }
       },
     }),
@@ -44,18 +45,20 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        token.role = (user as any).role
-        token.organizationId = (user as any).organizationId
-        token.organizationName = (user as any).organizationName
+        token.role = user.role
+        token.organizationId = user.organizationId
+        token.organizationName = user.organizationName
+        token.mustChangePassword = user.mustChangePassword
       }
       return token
     },
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.id as string
-        session.user.role = token.role as string
-        session.user.organizationId = token.organizationId as string
-        session.user.organizationName = token.organizationName as string
+        session.user.id = token.id
+        session.user.role = token.role
+        session.user.organizationId = token.organizationId
+        session.user.organizationName = token.organizationName
+        ;(session.user as Record<string, unknown>).mustChangePassword = token.mustChangePassword
       }
       return session
     },

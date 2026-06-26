@@ -14,9 +14,12 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Building2, Users, Shield, Plus, Trash2, Loader2, Copy, CheckCircle, KeyRound } from 'lucide-react'
+import { Building2, Users, Shield, Plus, Trash2, Loader2, Copy, CheckCircle, KeyRound, Bell, User } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 
 interface Member { id: string; name: string | null; email: string; role: string; createdAt: string }
+interface NotifPrefs { runComplete: boolean; memberInvited: boolean }
+interface ProfileForm { name: string }
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -35,13 +38,18 @@ export default function SettingsPage() {
   const [pwSuccess, setPwSuccess] = useState(false)
 
   const isAdmin = session?.user.role === 'ADMIN'
+  const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ runComplete: true, memberInvited: true })
+  const [profileForm, setProfileForm] = useState<ProfileForm>({ name: '' })
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
 
   useEffect(() => {
     fetch('/api/organizations/members')
       .then((r) => r.json())
       .then(setMembers)
       .finally(() => setLoading(false))
-  }, [])
+    if (session?.user.name) setProfileForm({ name: session.user.name })
+  }, [session])
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
@@ -97,6 +105,19 @@ export default function SettingsPage() {
     if (!res.ok) { setPwError(data.error || 'Failed to update password') }
     else { setPwSuccess(true); setPwForm({ current: '', next: '', confirm: '' }) }
     setPwSaving(false)
+  }
+
+  async function handleProfileSave(e: React.FormEvent) {
+    e.preventDefault()
+    setProfileSaving(true)
+    await fetch('/api/user/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: profileForm.name }),
+    })
+    setProfileSaved(true)
+    setTimeout(() => setProfileSaved(false), 3000)
+    setProfileSaving(false)
   }
 
   function closeInviteDialog() {
@@ -330,34 +351,74 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Your account */}
+        {/* Profile */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Shield className="w-4 h-4 text-[#1e3a5f]" />
+                <User className="w-4 h-4 text-[#1e3a5f]" />
               </div>
               <div>
-                <CardTitle className="text-base">Your Account</CardTitle>
-                <CardDescription>Your profile and role in this workspace</CardDescription>
+                <CardTitle className="text-base">Profile</CardTitle>
+                <CardDescription>Update your display name</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Name</p>
-                <p className="text-sm font-medium text-gray-900">{session.user.name}</p>
+            <form onSubmit={handleProfileSave} className="flex gap-3 max-w-sm items-end">
+              <div className="flex-1 space-y-1.5">
+                <Label>Display Name</Label>
+                <Input value={profileForm.name} onChange={(e) => setProfileForm({ name: e.target.value })} required />
               </div>
+              <Button type="submit" variant="outline" disabled={profileSaving} className="shrink-0">
+                {profileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : profileSaved ? <CheckCircle className="w-4 h-4 text-green-500" /> : 'Save'}
+              </Button>
+            </form>
+            <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Email</p>
-                <p className="text-sm text-gray-700">{session.user.email}</p>
+                <p className="text-gray-700">{session.user.email}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Role</p>
                 <RoleBadge role={session.user.role} />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                <Bell className="w-4 h-4 text-[#1e3a5f]" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Email Notifications</CardTitle>
+                <CardDescription>Choose which emails you receive</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[
+              { key: 'runComplete' as const, label: 'Migration run complete', desc: 'Receive an email when a simulation or migration run finishes' },
+              { key: 'memberInvited' as const, label: 'New member invited', desc: 'Notify me when a new team member is added to the workspace' },
+            ].map(({ key, label, desc }) => (
+              <div key={key} className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{label}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                </div>
+                <Switch
+                  checked={notifPrefs[key]}
+                  onCheckedChange={(v) => setNotifPrefs((p) => ({ ...p, [key]: v }))}
+                />
+              </div>
+            ))}
+            <p className="text-xs text-gray-400 pt-2 border-t">
+              Notification preferences are stored locally in your browser for this session.
+            </p>
           </CardContent>
         </Card>
       </div>
