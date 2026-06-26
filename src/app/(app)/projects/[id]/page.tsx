@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import {
   FolderKanban, Layers, GitMerge, ArrowRight, Calendar,
-  CheckCircle, AlertCircle, Play, FileSpreadsheet, MapPin,
+  CheckCircle, AlertCircle, Play, FileSpreadsheet, MapPin, Server,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
@@ -18,6 +18,7 @@ const navCards = [
   { href: 'mapping', label: 'Value Mapping', icon: MapPin, desc: 'Map source values to SAP target values' },
   { href: 'templates', label: 'Templates', icon: FileSpreadsheet, desc: 'Download XML templates and upload filled data' },
   { href: 'runs', label: 'Run Center', icon: Play, desc: 'Simulate and execute migration runs' },
+  { href: 'connection', label: 'SAP Connection', icon: Server, desc: 'Store connection details for your SAP target system' },
 ]
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
@@ -29,6 +30,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     include: {
       objects: true,
       runs: { orderBy: { createdAt: 'desc' }, take: 3 },
+      sapConnection: { select: { isVerified: true } },
     },
   })
 
