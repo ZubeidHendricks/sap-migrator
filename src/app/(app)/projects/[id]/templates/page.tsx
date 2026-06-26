@@ -48,6 +48,7 @@ export default function TemplatesPage() {
   const [downloading, setDownloading] = useState<string | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<Record<string, string>>({})
+  const [markingDone, setMarkingDone] = useState<string | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => {
@@ -111,6 +112,19 @@ export default function TemplatesPage() {
       setObjects((os) => os.map((o) => o.objectKey === objectKey ? { ...o, status: 'READY' } : o))
     }
     setUploading(null)
+  }
+
+  async function markAsDone(objectId: string, objectKey: string) {
+    setMarkingDone(objectKey)
+    const res = await fetch(`/api/projects/${params.id}/objects/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objectId, status: 'DONE' }),
+    })
+    if (res.ok) {
+      setObjects((os) => os.map((o) => o.id === objectId ? { ...o, status: 'DONE' } : o))
+    }
+    setMarkingDone(null)
   }
 
   function formatBytes(bytes: number) {
@@ -246,6 +260,27 @@ export default function TemplatesPage() {
                         {uploading === obj.objectKey ? 'Uploading…' : latestUpload ? 'Re-upload' : 'Upload Filled'}
                       </Button>
                     </div>
+
+                    {/* Mark as done */}
+                    {latestUpload && obj.status !== 'DONE' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-1.5 border-green-200 text-green-700 hover:bg-green-50"
+                        onClick={() => markAsDone(obj.id, obj.objectKey)}
+                        disabled={markingDone === obj.objectKey}
+                      >
+                        {markingDone === obj.objectKey
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <CheckCircle className="w-3.5 h-3.5" />}
+                        Mark as Done
+                      </Button>
+                    )}
+                    {obj.status === 'DONE' && (
+                      <p className="text-xs text-green-600 text-center font-medium flex items-center justify-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Marked as Done
+                      </p>
+                    )}
 
                     {/* Upload history count */}
                     {objectUploads.length > 1 && (

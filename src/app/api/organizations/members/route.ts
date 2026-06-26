@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { sendInviteEmail } from '@/lib/email'
+import { logAudit } from '@/lib/audit'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -44,6 +45,16 @@ export async function POST(req: Request) {
     select: { id: true, name: true, email: true, role: true, createdAt: true },
   })
 
+  await logAudit({
+    organizationId: session.user.organizationId,
+    userId: session.user.id,
+    action: 'member.invited',
+    entityType: 'user',
+    entityId: user.id,
+    entityName: name,
+    metadata: { email, role: role ?? 'MIGRATOR' },
+  })
+
   const appUrl = process.env.NEXTAUTH_URL || 'https://sap-migrator-5vybv.ondigitalocean.app'
   await sendInviteEmail({
     to: email,
@@ -70,6 +81,15 @@ export async function DELETE(req: Request) {
     where: { id: userId, organizationId: session.user.organizationId },
   })
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+
+  await logAudit({
+    organizationId: session.user.organizationId,
+    userId: session.user.id,
+    action: 'member.removed',
+    entityType: 'user',
+    entityId: member.id,
+    entityName: member.name ?? member.email,
+  })
 
   await prisma.user.delete({ where: { id: userId } })
   return NextResponse.json({ success: true })

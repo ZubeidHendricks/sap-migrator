@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { sendRunCompleteEmail } from '@/lib/email'
+import { logAudit } from '@/lib/audit'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -50,6 +51,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     project.name,
     type,
     session.user.organizationId,
+    session.user.id,
   ).catch(console.error)
 
   return NextResponse.json(run, { status: 201 })
@@ -62,6 +64,7 @@ async function simulateRun(
   projectName: string,
   runType: 'SIMULATION' | 'MIGRATION',
   orgId: string,
+  userId: string,
 ) {
   await new Promise((r) => setTimeout(r, 800))
 
@@ -96,6 +99,16 @@ async function simulateRun(
   await prisma.migrationRun.update({
     where: { id: runId },
     data: { status: 'COMPLETED', completedAt: new Date(), totalRecords, successCount, errorCount, warningCount },
+  })
+
+  await logAudit({
+    organizationId: orgId,
+    userId,
+    action: 'run.completed',
+    entityType: 'run',
+    entityId: runId,
+    entityName: projectName,
+    metadata: { runType, totalRecords, successCount, errorCount, warningCount },
   })
 
   // Notify all admins in the org

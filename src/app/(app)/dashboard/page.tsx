@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import {
   FolderKanban, Plus, TrendingUp, CheckCircle, AlertCircle, Clock,
-  Database, BarChart3, Target,
+  Database, BarChart3, Target, Activity,
 } from 'lucide-react'
 import { formatRelativeDate } from '@/lib/utils'
 
@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   if (!session) return null
 
-  const [projects, runs] = await Promise.all([
+  const [projects, runs, recentActivity] = await Promise.all([
     prisma.project.findMany({
       where: { organizationId: session.user.organizationId },
       include: {
@@ -34,6 +34,12 @@ export default async function DashboardPage() {
       select: { type: true, successCount: true, totalRecords: true, errorCount: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
       take: 20,
+    }),
+    prisma.auditLog.findMany({
+      where: { organizationId: session.user.organizationId },
+      include: { user: { select: { name: true, email: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
     }),
   ])
 
@@ -170,36 +176,66 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Recent run activity */}
-      {runs.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-400" /> Recent Run Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {runs.slice(0, 5).map((r, i) => {
-                const pct = r.totalRecords > 0 ? Math.round((r.successCount / r.totalRecords) * 100) : 0
-                return (
-                  <div key={i} className="flex items-center gap-4">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${r.errorCount === 0 ? 'bg-green-400' : 'bg-red-400'}`} />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-700 capitalize">{r.type.toLowerCase()} run</span>
-                        <span className="text-xs text-gray-400">{pct}% success</span>
+      {/* Bottom row: runs + recent activity */}
+      <div className="mt-6 grid lg:grid-cols-2 gap-6">
+        {runs.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-400" /> Recent Run Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {runs.slice(0, 5).map((r, i) => {
+                  const pct = r.totalRecords > 0 ? Math.round((r.successCount / r.totalRecords) * 100) : 0
+                  return (
+                    <div key={i} className="flex items-center gap-4">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${r.errorCount === 0 ? 'bg-green-400' : 'bg-red-400'}`} />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-gray-700 capitalize">{r.type.toLowerCase()} run</span>
+                          <span className="text-xs text-gray-400">{pct}% success</span>
+                        </div>
+                        <Progress value={pct} className="h-1" />
                       </div>
-                      <Progress value={pct} className="h-1" />
+                      <span className="text-xs text-gray-400 shrink-0 w-20 text-right">{formatRelativeDate(r.createdAt)}</span>
                     </div>
-                    <span className="text-xs text-gray-400 shrink-0 w-24 text-right">{formatRelativeDate(r.createdAt)}</span>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {recentActivity.length > 0 && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Activity className="w-4 h-4 text-gray-400" /> Recent Activity
+              </CardTitle>
+              <Link href="/activity" className="text-xs text-[#1e3a5f] hover:underline">View all</Link>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {recentActivity.map((log) => (
+                  <div key={log.id} className="flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-300 mt-2 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-900">
+                        <span className="font-medium">{log.user.name ?? log.user.email}</span>
+                        {' '}<span className="text-gray-500">{log.action.replace('.', ' ').replace('_', ' ')}</span>
+                        {log.entityName && <span className="text-gray-400"> — {log.entityName}</span>}
+                      </p>
+                    </div>
+                    <span className="text-xs text-gray-400 shrink-0">{formatRelativeDate(log.createdAt)}</span>
                   </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }
