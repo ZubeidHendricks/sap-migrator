@@ -15,9 +15,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft, Plus, Trash2, Loader2, MapPin, ArrowRight } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, MapPin, ArrowRight, Download, Upload } from 'lucide-react'
 import { getObjectByKey } from '@/lib/migration-objects'
 import { useToast } from '@/components/ui/use-toast'
+import { useRef } from 'react'
 
 interface ProjectObject { id: string; objectKey: string; objectName: string; category: string }
 interface Mapping { id: string; fieldName: string; fieldLabel?: string; sourceValue: string; targetValue: string; projectObjectId: string }
@@ -33,6 +34,8 @@ export default function MappingPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState({ fieldName: '', sourceValue: '', targetValue: '' })
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const importRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch(`/api/projects/${params.id}/objects`)
@@ -80,6 +83,25 @@ export default function MappingPage() {
     setSaving(false)
   }
 
+  async function handleImport(file: File) {
+    setImporting(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch(`/api/projects/${params.id}/mappings/import`, { method: 'POST', body: fd })
+    const data = await res.json()
+    if (res.ok) {
+      toast({ title: `Imported ${data.imported} mappings`, description: data.skipped.length > 0 ? `Skipped unknown objects: ${data.skipped.join(', ')}` : undefined })
+      // Reload current object mappings
+      if (selectedObj) {
+        const r2 = await fetch(`/api/projects/${params.id}/mappings?objectId=${selectedObj.id}`)
+        setMappings(await r2.json())
+      }
+    } else {
+      toast({ title: 'Import failed', description: data.error, variant: 'destructive' })
+    }
+    setImporting(false)
+  }
+
   async function deleteMapping(id: string) {
     await fetch(`/api/projects/${params.id}/mappings`, {
       method: 'DELETE',
@@ -96,9 +118,18 @@ export default function MappingPage() {
         <Link href={`/projects/${params.id}`}>
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">Value Mapping</h1>
           <p className="text-gray-500 text-sm">Map source system values to SAP target values per field</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input ref={importRef} type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = '' }} />
+          <Button variant="outline" size="sm" className="gap-1.5" disabled={importing} onClick={() => importRef.current?.click()}>
+            {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Import CSV
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { window.location.href = `/api/projects/${params.id}/mappings/export` }}>
+            <Download className="w-3.5 h-3.5" /> Export CSV
+          </Button>
         </div>
       </div>
 

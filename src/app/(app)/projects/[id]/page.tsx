@@ -13,13 +13,14 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
-import { SettingsIcon } from 'lucide-react'
+import { SettingsIcon, ArrowDownCircle } from 'lucide-react'
 
 const navCards = [
   { href: 'objects', label: 'Migration Objects', icon: Layers, desc: 'Select SAP objects to migrate from the catalog' },
   { href: 'mapping', label: 'Value Mapping', icon: MapPin, desc: 'Map source values to SAP target values' },
   { href: 'templates', label: 'Templates', icon: FileSpreadsheet, desc: 'Download XML templates and upload filled data' },
   { href: 'runs', label: 'Run Center', icon: Play, desc: 'Simulate and execute migration runs' },
+  { href: 'extract', label: 'Data Extract', icon: ArrowDownCircle, desc: 'Extract data FROM SAP to PostgreSQL, Snowflake, BigQuery, or CSV' },
   { href: 'connection', label: 'SAP Connection', icon: Server, desc: 'Store connection details for your SAP target system' },
   { href: 'settings', label: 'Project Settings', icon: SettingsIcon, desc: 'Edit name, status, go-live date and export data' },
 ]

@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, ArrowLeft, Download, Trash2, Save } from 'lucide-react'
+import { Loader2, ArrowLeft, Download, Trash2, Save, Copy } from 'lucide-react'
 
 interface Project {
   id: string
@@ -84,6 +84,20 @@ export default function ProjectSettingsPage() {
 
   function handleExport() {
     window.location.href = `/api/projects/${id}/export`
+  }
+
+  async function handleClone() {
+    const name = prompt(`Clone "${project?.name}" as:`, `${project?.name} (copy)`)
+    if (!name) return
+    const res = await fetch(`/api/projects/${id}/clone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    if (res.ok) {
+      const clone = await res.json()
+      router.push(`/projects/${clone.id}`)
+    }
   }
 
   if (!project) {
@@ -170,9 +184,14 @@ export default function ProjectSettingsPage() {
           <CardDescription>Download a full report of this project including all objects and run history.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" onClick={handleExport} className="gap-2">
-            <Download className="w-4 h-4" /> Export as CSV
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={handleExport} className="gap-2">
+              <Download className="w-4 h-4" /> Export as CSV
+            </Button>
+            <Button variant="outline" onClick={handleClone} className="gap-2">
+              <Copy className="w-4 h-4" /> Clone Project
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

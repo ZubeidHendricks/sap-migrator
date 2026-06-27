@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Activity, FolderKanban, Play, Users, Upload, Settings, KeyRound, Server } from 'lucide-react'
+import { Activity, FolderKanban, Play, Users, Upload, Settings, KeyRound, Server, ArrowDownCircle } from 'lucide-react'
 
 interface Log {
   id: string
@@ -26,7 +26,9 @@ const ACTION_META: Record<string, { label: string; icon: typeof Activity; color:
   'member.removed':       { label: 'Removed member',         icon: Users,        color: 'text-red-500' },
   'template.uploaded':    { label: 'Uploaded template',      icon: Upload,       color: 'text-green-500' },
   'connection.saved':     { label: 'Updated SAP connection', icon: Server,       color: 'text-blue-500' },
-  'password.changed':     { label: 'Changed password',       icon: KeyRound,     color: 'text-gray-500' },
+  'password.changed':     { label: 'Changed password',       icon: KeyRound,          color: 'text-gray-500' },
+  'project.cloned':       { label: 'Cloned project',         icon: FolderKanban,      color: 'text-blue-500' },
+  'extract.created':      { label: 'Started data extract',   icon: ArrowDownCircle,   color: 'text-indigo-500' },
 }
 
 function formatTime(iso: string) {

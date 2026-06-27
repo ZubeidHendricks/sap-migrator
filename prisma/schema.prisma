@@ -122,6 +122,38 @@ model Project {
   objects        ProjectObject[]
   runs           MigrationRun[]
   sapConnection  SapConnection?
+  extractJobs    DataExtractJob[]
+}
+
+enum ExtractTargetType {
+  POSTGRESQL
+  SNOWFLAKE
+  BIGQUERY
+  CSV_DOWNLOAD
+}
+
+enum ExtractStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model DataExtractJob {
+  id             String          @id @default(cuid())
+  projectId      String
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name           String
+  targetType     ExtractTargetType
+  targetConfig   Json
+  objectKeys     Json
+  status         ExtractStatus   @default(PENDING)
+  rowsExtracted  Int             @default(0)
+  errorMessage   String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 model PasswordResetToken {

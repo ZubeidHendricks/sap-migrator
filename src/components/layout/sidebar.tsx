@@ -12,6 +12,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SearchDialog } from './search-dialog'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -47,6 +48,11 @@ export function Sidebar() {
           <Building2 className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">{session?.user?.organizationName ?? '…'}</span>
         </div>
+      </div>
+
+      {/* Search */}
+      <div className="px-3 py-2 border-b border-white/10">
+        <SearchDialog />
       </div>
 
       {/* Nav */}
