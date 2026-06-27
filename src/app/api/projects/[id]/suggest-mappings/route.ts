@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { getObjectByKey } from '@/lib/migration-objects'
 import { suggestMappings } from '@/lib/field-matcher'
+import { isLlmEnabled, suggestMappingsLlm } from '@/lib/llm-field-matcher'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -22,6 +23,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const object = getObjectByKey(objectKey)
   if (!object) return NextResponse.json({ error: 'Unknown object' }, { status: 404 })
 
-  const suggestions = suggestMappings(headers.map(String), object)
-  return NextResponse.json({ objectKey, suggestions })
+  const cleaned = headers.map(String)
+
+  // Prefer the LLM when configured; fall back to the deterministic matcher.
+  let engine: 'ai' | 'rules' = 'rules'
+  let suggestions = null
+  if (isLlmEnabled()) {
+    suggestions = await suggestMappingsLlm(cleaned, object)
+    if (suggestions) engine = 'ai'
+  }
+  if (!suggestions) suggestions = suggestMappings(cleaned, object)
+
+  return NextResponse.json({ objectKey, engine, suggestions })
 }
