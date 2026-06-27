@@ -52,6 +52,22 @@ model Organization {
   users     User[]
   projects  Project[]
   auditLogs AuditLog[]
+  apiKeys   ApiKey[]
+}
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  keyPrefix      String       // visible portion shown in the UI, e.g. smk_live_ab12cd34
+  keyHash        String       @unique // sha256 of the full key
+  createdById    String
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
 }
 
 model User {

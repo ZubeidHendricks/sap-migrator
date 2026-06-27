@@ -152,6 +152,30 @@ written to never block the server from starting. Secrets (`DATABASE_URL`,
 
 ---
 
+## Public API (v1)
+
+Programmatic access for ERP integrators and SI partners. Create an API key in
+**Settings → API Keys** (shown once), then authenticate with a Bearer token:
+
+```bash
+# List projects
+curl https://sap-migrator-5vybv.ondigitalocean.app/api/v1/projects \
+  -H "Authorization: Bearer smk_live_xxx"
+
+# Create a project
+curl -X POST https://sap-migrator-5vybv.ondigitalocean.app/api/v1/projects \
+  -H "Authorization: Bearer smk_live_xxx" -H "Content-Type: application/json" \
+  -d '{"name":"Q3 Migration","approach":"STAGING_TABLES"}'
+
+# List the SAP object catalog (objects + fields)
+curl https://sap-migrator-5vybv.ondigitalocean.app/api/v1/catalog \
+  -H "Authorization: Bearer smk_live_xxx"
+```
+
+Keys are org-scoped, stored only as a SHA-256 hash, and can be revoked anytime.
+
+---
+
 ## Migration workflow
 
 ```

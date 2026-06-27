@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select'
 import { Building2, Users, Shield, Plus, Trash2, Loader2, Copy, CheckCircle, KeyRound, Bell, User } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { ApiKeysCard } from '@/components/settings/api-keys-card'
 
 interface Member { id: string; name: string | null; email: string; role: string; createdAt: string }
 interface NotifPrefs { runComplete: boolean; memberInvited: boolean }
@@ -421,6 +422,9 @@ export default function SettingsPage() {
             </p>
           </CardContent>
         </Card>
+
+        {/* API keys (Phase 4 — programmatic access) */}
+        <ApiKeysCard isAdmin={isAdmin} />
       </div>
     </div>
   )

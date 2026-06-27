@@ -29,6 +29,8 @@ const ACTION_META: Record<string, { label: string; icon: typeof Activity; color:
   'password.changed':     { label: 'Changed password',       icon: KeyRound,          color: 'text-gray-500' },
   'project.cloned':       { label: 'Cloned project',         icon: FolderKanban,      color: 'text-blue-500' },
   'extract.created':      { label: 'Started data extract',   icon: ArrowDownCircle,   color: 'text-indigo-500' },
+  'apikey.created':       { label: 'Created API key',        icon: KeyRound,          color: 'text-blue-500' },
+  'apikey.revoked':       { label: 'Revoked API key',        icon: KeyRound,          color: 'text-red-500' },
 }
 
 function formatTime(iso: string) {
