@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { getObjectByKey } from '@/lib/migration-objects'
+import { resolveObject } from '@/lib/object-catalog'
 import { validateSpreadsheet } from '@/lib/validation-rules'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -34,7 +34,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // Validate the uploaded data against the object's SAP field rules.
   const text = await file.text()
-  const objectDef = getObjectByKey(objectKey)
+  const objectDef = await resolveObject(objectKey, session.user.organizationId)
   const validation = objectDef ? validateSpreadsheet(objectDef, text) : null
   const dataRows = validation
     ? validation.totalRows

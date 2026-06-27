@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Activity, FolderKanban, Play, Users, Upload, Settings, KeyRound, Server, ArrowDownCircle } from 'lucide-react'
+import { Activity, FolderKanban, Play, Users, Upload, Settings, KeyRound, Server, ArrowDownCircle, Boxes } from 'lucide-react'
 
 interface Log {
   id: string
@@ -31,6 +31,8 @@ const ACTION_META: Record<string, { label: string; icon: typeof Activity; color:
   'extract.created':      { label: 'Started data extract',   icon: ArrowDownCircle,   color: 'text-indigo-500' },
   'apikey.created':       { label: 'Created API key',        icon: KeyRound,          color: 'text-blue-500' },
   'apikey.revoked':       { label: 'Revoked API key',        icon: KeyRound,          color: 'text-red-500' },
+  'custom_object.created':{ label: 'Created custom object',   icon: Boxes,             color: 'text-blue-500' },
+  'custom_object.deleted':{ label: 'Deleted custom object',   icon: Boxes,             color: 'text-red-500' },
 }
 
 function formatTime(iso: string) {

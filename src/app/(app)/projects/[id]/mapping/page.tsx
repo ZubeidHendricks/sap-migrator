@@ -17,7 +17,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Plus, Trash2, Loader2, MapPin, ArrowRight, Download, Upload, Sparkles } from 'lucide-react'
-import { getObjectByKey } from '@/lib/migration-objects'
+import { type MigrationObject } from '@/lib/migration-objects'
 import { useToast } from '@/components/ui/use-toast'
 import { useRef } from 'react'
 
@@ -44,15 +44,17 @@ export default function MappingPage() {
   const [suggesting, setSuggesting] = useState(false)
   const [suggestions, setSuggestions] = useState<HeaderSuggestion[] | null>(null)
   const [suggestEngine, setSuggestEngine] = useState<'ai' | 'rules' | null>(null)
+  const [catalog, setCatalog] = useState<MigrationObject[]>([])
 
   useEffect(() => {
-    fetch(`/api/projects/${params.id}/objects`)
-      .then((r) => r.json())
-      .then((data) => {
-        setObjects(data)
-        if (data.length > 0) setSelectedObj(data[0])
-      })
-      .finally(() => setLoadingObjs(false))
+    Promise.all([
+      fetch(`/api/projects/${params.id}/objects`).then((r) => r.json()),
+      fetch(`/api/catalog`).then((r) => r.json()),
+    ]).then(([data, cat]) => {
+      setObjects(data)
+      if (data.length > 0) setSelectedObj(data[0])
+      if (Array.isArray(cat)) setCatalog(cat)
+    }).finally(() => setLoadingObjs(false))
   }, [params.id])
 
   useEffect(() => {
@@ -64,7 +66,7 @@ export default function MappingPage() {
       .finally(() => setLoadingMaps(false))
   }, [selectedObj, params.id])
 
-  const objDef = selectedObj ? getObjectByKey(selectedObj.objectKey) : null
+  const objDef = selectedObj ? catalog.find((o) => o.key === selectedObj.objectKey) ?? null : null
 
   async function addMapping() {
     if (!selectedObj || !form.fieldName || !form.sourceValue || !form.targetValue) return

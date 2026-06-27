@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
-import { getObjectByKey } from '@/lib/migration-objects'
+import { resolveObject } from '@/lib/object-catalog'
 import { generateXmlTemplate, xmlTemplateFilename } from '@/lib/xml-generator'
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   })
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const def = getObjectByKey(objectKey)
+  const def = await resolveObject(objectKey, session.user.organizationId)
   if (!def) return NextResponse.json({ error: 'Unknown migration object' }, { status: 400 })
 
   const xml = generateXmlTemplate(def)

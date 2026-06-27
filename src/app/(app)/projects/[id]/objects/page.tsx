@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { MIGRATION_OBJECTS, getObjectsByCategory, type MigrationObject } from '@/lib/migration-objects'
-import { ArrowLeft, Search, CheckCircle, Plus, Loader2, X } from 'lucide-react'
+import { type MigrationObject } from '@/lib/migration-objects'
+import { ArrowLeft, Search, CheckCircle, Loader2, X, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -30,30 +30,33 @@ export default function ObjectsPage() {
   const [existing, setExisting] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [catalog, setCatalog] = useState<(MigrationObject & { custom?: boolean })[]>([])
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/projects/${params.id}`).then((r) => r.json()),
       fetch(`/api/projects/${params.id}/objects`).then((r) => r.json()),
-    ]).then(([project, objects]) => {
+      fetch(`/api/catalog`).then((r) => r.json()),
+    ]).then(([project, objects, cat]) => {
       setApproach(project.approach)
       const keys = new Set<string>(objects.map((o: any) => o.objectKey))
       setExisting(keys)
       setSelected(new Set(keys))
+      if (Array.isArray(cat)) setCatalog(cat)
     }).finally(() => setLoading(false))
   }, [params.id])
 
-  const filtered = MIGRATION_OBJECTS.filter((o) => {
+  const filtered = catalog.filter((o) => {
     const matchesApproach = !approach || o.approach.includes(approach)
     const matchesSearch = search === '' || o.name.toLowerCase().includes(search.toLowerCase()) || o.key.toLowerCase().includes(search.toLowerCase()) || o.description.toLowerCase().includes(search.toLowerCase())
     const matchesCategory = category === 'All' || o.category === category
     return matchesApproach && matchesSearch && matchesCategory
   })
 
-  const categories = ['All', ...Array.from(new Set(MIGRATION_OBJECTS.map((o) => o.category)))]
+  const categories = ['All', ...Array.from(new Set(catalog.map((o) => o.category)))]
 
   function toggle(key: string) {
     setSelected((s) => {
@@ -120,7 +123,7 @@ export default function ObjectsPage() {
       {selected.size > 0 && (
         <div className="flex flex-wrap gap-2 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
           {Array.from(selected).map((key) => {
-            const obj = MIGRATION_OBJECTS.find((o) => o.key === key)
+            const obj = catalog.find((o) => o.key === key)
             return (
               <Badge key={key} variant="secondary" className="gap-1 pl-2 pr-1 py-1">
                 {obj?.name ?? key}
@@ -178,7 +181,12 @@ export default function ObjectsPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className="font-medium text-sm text-gray-900">{obj.name}</p>
+                  <p className="font-medium text-sm text-gray-900 flex items-center gap-1.5">
+                    {obj.name}
+                    {(obj as { custom?: boolean }).custom && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-[#1e3a5f] text-white"><Sparkles className="w-2.5 h-2.5" />Custom</span>
+                    )}
+                  </p>
                   <span className={cn('text-xs px-2 py-0.5 rounded-full border shrink-0', CATEGORY_COLORS[obj.category] ?? 'bg-gray-50 text-gray-700')}>
                     {obj.category}
                   </span>

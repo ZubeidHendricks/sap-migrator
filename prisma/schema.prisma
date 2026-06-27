@@ -49,10 +49,30 @@ model Organization {
   slug      String     @unique
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-  users     User[]
-  projects  Project[]
-  auditLogs AuditLog[]
-  apiKeys   ApiKey[]
+  users         User[]
+  projects      Project[]
+  auditLogs     AuditLog[]
+  apiKeys       ApiKey[]
+  customObjects CustomObject[]
+}
+
+model CustomObject {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key            String       // e.g. Z_PRICE_LIST (uppercase)
+  name           String
+  category       String
+  description    String?
+  sapTable       String?
+  approach       Json         // string[]: ["STAGING_TABLES","DIRECT_TRANSFER"]
+  fields         Json         // MigrationObjectField[]
+  createdById    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
 }
 
 model ApiKey {
