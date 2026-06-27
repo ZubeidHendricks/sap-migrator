@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import {
-  LayoutDashboard, FolderKanban, Settings, LogOut, Database, ChevronDown, Building2, Activity,
+  LayoutDashboard, FolderKanban, Settings, LogOut, Database, ChevronDown, Building2, Activity, Sparkles,
 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -17,6 +17,7 @@ import { SearchDialog } from './search-dialog'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
+  { href: '/insights', label: 'Insights', icon: Sparkles },
   { href: '/activity', label: 'Activity', icon: Activity },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]

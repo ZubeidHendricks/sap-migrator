@@ -12,6 +12,7 @@ import {
   CheckCircle, AlertCircle, Play, FileSpreadsheet, MapPin, Server,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { ProjectInsightsCard } from '@/components/project-insights-card'
 
 import { SettingsIcon, ArrowDownCircle } from 'lucide-react'
 
@@ -123,6 +124,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           </p>
         </CardContent>
       </Card>
+
+      {/* Migration intelligence (Phase 4) */}
+      <ProjectInsightsCard projectId={project.id} />
 
       {/* Nav cards */}
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">

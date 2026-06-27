@@ -15,13 +15,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft, Plus, Trash2, Loader2, MapPin, ArrowRight, Download, Upload } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { ArrowLeft, Plus, Trash2, Loader2, MapPin, ArrowRight, Download, Upload, Sparkles } from 'lucide-react'
 import { getObjectByKey } from '@/lib/migration-objects'
 import { useToast } from '@/components/ui/use-toast'
 import { useRef } from 'react'
 
 interface ProjectObject { id: string; objectKey: string; objectName: string; category: string }
 interface Mapping { id: string; fieldName: string; fieldLabel?: string; sourceValue: string; targetValue: string; projectObjectId: string }
+interface FieldSuggestion { field: string; label: string; required: boolean; score: number; reason: string }
+interface HeaderSuggestion { sourceHeader: string; suggestions: FieldSuggestion[] }
 
 export default function MappingPage() {
   const params = useParams<{ id: string }>()
@@ -36,6 +39,10 @@ export default function MappingPage() {
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [headerInput, setHeaderInput] = useState('')
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestions, setSuggestions] = useState<HeaderSuggestion[] | null>(null)
 
   useEffect(() => {
     fetch(`/api/projects/${params.id}/objects`)
@@ -83,6 +90,26 @@ export default function MappingPage() {
     setSaving(false)
   }
 
+  async function runSuggest() {
+    if (!selectedObj) return
+    const headers = headerInput.split(/[\n,;\t]+/).map((h) => h.trim()).filter(Boolean)
+    if (headers.length === 0) return
+    setSuggesting(true)
+    setSuggestions(null)
+    const res = await fetch(`/api/projects/${params.id}/suggest-mappings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objectKey: selectedObj.objectKey, headers }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setSuggestions(data.suggestions)
+    } else {
+      toast({ title: 'Could not generate suggestions', variant: 'destructive' })
+    }
+    setSuggesting(false)
+  }
+
   async function handleImport(file: File) {
     setImporting(true)
     const fd = new FormData()
@@ -123,6 +150,9 @@ export default function MappingPage() {
           <p className="text-gray-500 text-sm">Map source system values to SAP target values per field</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5 border-[#1e3a5f]/30 text-[#1e3a5f]" disabled={!selectedObj} onClick={() => { setSuggestions(null); setHeaderInput(''); setSuggestOpen(true) }}>
+            <Sparkles className="w-3.5 h-3.5" /> Suggest Fields
+          </Button>
           <input ref={importRef} type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = '' }} />
           <Button variant="outline" size="sm" className="gap-1.5" disabled={importing} onClick={() => importRef.current?.click()}>
             {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Import CSV
@@ -296,6 +326,59 @@ export default function MappingPage() {
               Add Mapping
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Field-mapping assistant */}
+      <Dialog open={suggestOpen} onOpenChange={setSuggestOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#1e3a5f]" /> Field Mapping Assistant
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Paste the column headers from your source/legacy export and we&apos;ll suggest which
+              SAP fields on <span className="font-medium text-gray-700">{selectedObj?.objectName}</span> they map to.
+            </p>
+            <Textarea
+              rows={3}
+              placeholder="e.g. Company Code, GL Account Number, Account Currency, Tax Category"
+              value={headerInput}
+              onChange={(e) => setHeaderInput(e.target.value)}
+            />
+            <Button onClick={runSuggest} disabled={suggesting || !headerInput.trim()} className="bg-[#1e3a5f] hover:bg-[#2a4f7c] gap-2">
+              {suggesting ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</> : <><Sparkles className="w-4 h-4" /> Suggest SAP Fields</>}
+            </Button>
+
+            {suggestions && (
+              <div className="border rounded-lg divide-y max-h-80 overflow-y-auto">
+                {suggestions.map((h, i) => (
+                  <div key={i} className="p-3">
+                    <p className="text-xs font-mono text-gray-500 mb-1.5">{h.sourceHeader}</p>
+                    {h.suggestions.length === 0 ? (
+                      <p className="text-xs text-gray-400">No confident match — map manually.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {h.suggestions.map((s) => (
+                          <div key={s.field} className="flex items-center gap-2 text-sm">
+                            <ArrowRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                            <span className="font-mono font-medium text-gray-900">{s.field}</span>
+                            <span className="text-gray-500">{s.label}</span>
+                            {s.required && <Badge variant="outline" className="text-[10px] py-0">required</Badge>}
+                            <span className={`ml-auto text-xs font-medium ${s.score >= 0.8 ? 'text-green-600' : s.score >= 0.6 ? 'text-yellow-600' : 'text-gray-400'}`}>
+                              {Math.round(s.score * 100)}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
