@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
+import { toCSV } from '@/lib/csv'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -53,7 +54,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     ]),
   ]
 
-  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const csv = toCSV(rows)
 
   return new NextResponse(csv, {
     headers: {

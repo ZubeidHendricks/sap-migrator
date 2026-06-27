@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { sendInviteEmail } from '@/lib/email'
 import { logAudit } from '@/lib/audit'
+import { isValidEmail, generateTempPassword } from '@/lib/validation'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -26,11 +27,12 @@ export async function POST(req: Request) {
 
   const { name, email, role } = await req.json()
   if (!name || !email) return NextResponse.json({ error: 'Name and email required' }, { status: 400 })
+  if (!isValidEmail(email)) return NextResponse.json({ error: 'A valid email address is required' }, { status: 400 })
 
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
 
-  const tempPassword = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10)
+  const tempPassword = generateTempPassword()
   const hashed = await bcrypt.hash(tempPassword, 12)
 
   const user = await prisma.user.create({

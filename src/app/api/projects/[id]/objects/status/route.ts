@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
+import { isValidObjectStatus } from '@/lib/validation'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -14,8 +15,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { objectId, status } = await req.json()
-  const valid = ['PENDING', 'MAPPED', 'READY', 'DONE']
-  if (!objectId || !valid.includes(status)) {
+  if (!objectId || !isValidObjectStatus(status)) {
     return NextResponse.json({ error: 'objectId and valid status required' }, { status: 400 })
   }
 

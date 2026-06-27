@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { sendRunCompleteEmail } from '@/lib/email'
 import { logAudit } from '@/lib/audit'
+import { isValidRunType } from '@/lib/validation'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -35,7 +36,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { type } = await req.json()
-  if (!['SIMULATION', 'MIGRATION'].includes(type)) {
+  if (!isValidRunType(type)) {
     return NextResponse.json({ error: 'type must be SIMULATION or MIGRATION' }, { status: 400 })
   }
 

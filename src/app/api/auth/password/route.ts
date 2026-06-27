@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
+import { validatePassword } from '@/lib/validation'
 import bcrypt from 'bcryptjs'
 
 export async function PATCH(req: Request) {
@@ -10,11 +11,12 @@ export async function PATCH(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { currentPassword, newPassword } = await req.json()
-  if (!currentPassword || !newPassword) {
+  if (!currentPassword) {
     return NextResponse.json({ error: 'Both fields are required' }, { status: 400 })
   }
-  if (newPassword.length < 8) {
-    return NextResponse.json({ error: 'New password must be at least 8 characters' }, { status: 400 })
+  const pwError = validatePassword(newPassword)
+  if (pwError) {
+    return NextResponse.json({ error: pwError }, { status: 400 })
   }
 
   const user = await prisma.user.findUnique({ where: { id: session.user.id } })

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
+import { validateExtractJob } from '@/lib/validation'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -34,8 +35,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const body = await req.json()
   const { name, targetType, targetConfig, objectKeys } = body
 
-  if (!name || !targetType || !objectKeys?.length) {
-    return NextResponse.json({ error: 'name, targetType and objectKeys are required' }, { status: 400 })
+  const validationError = validateExtractJob(body)
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 })
   }
 
   const job = await prisma.dataExtractJob.create({
