@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
-import { getObjectByKey } from '@/lib/migration-objects'
+import { resolveObject } from '@/lib/object-catalog'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -35,7 +35,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const results = await Promise.all(
     objectKeys.map(async (key) => {
-      const def = getObjectByKey(key)
+      const def = await resolveObject(key, session.user.organizationId)
       if (!def) return null
       return prisma.projectObject.upsert({
         where: { projectId_objectKey: { projectId: params.id, objectKey: key } },
