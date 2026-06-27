@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { getObjectByKey } from '@/lib/migration-objects'
+import { validateSpreadsheet } from '@/lib/validation-rules'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -29,28 +32,46 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   })
   if (!projectObject) return NextResponse.json({ error: 'Object not found in project' }, { status: 404 })
 
-  // Parse row count from XML (count <Row> elements after header rows)
+  // Validate the uploaded data against the object's SAP field rules.
   const text = await file.text()
-  const rowMatches = text.match(/<Row/g)
-  const totalRows = rowMatches ? rowMatches.length : 0
-  // First 2 rows are headers, rest is data
-  const dataRows = Math.max(0, totalRows - 2)
+  const objectDef = getObjectByKey(objectKey)
+  const validation = objectDef ? validateSpreadsheet(objectDef, text) : null
+  const dataRows = validation
+    ? validation.totalRows
+    : Math.max(0, (text.match(/<Row/g)?.length ?? 0) - 2)
 
+  const hasErrors = (validation?.errorRows ?? 0) > 0
   const template = await prisma.migrationTemplate.create({
     data: {
       projectObjectId: projectObject.id,
       filename: file.name,
       fileSize: file.size,
       rowCount: dataRows,
-      status: 'UPLOADED',
+      status: hasErrors ? 'INVALID' : 'UPLOADED',
+      validationErrors: validation
+        ? ({
+            totalRows: validation.totalRows,
+            validRows: validation.validRows,
+            errorRows: validation.errorRows,
+            warningRows: validation.warningRows,
+            // Cap stored issues to keep the row small; UI shows the first 100.
+            issues: validation.issues.slice(0, 100),
+          } as unknown as Prisma.InputJsonValue)
+        : undefined,
     },
   })
 
-  // Update object status to READY if it was PENDING
-  if (projectObject.status === 'PENDING' || projectObject.status === 'MAPPED') {
+  // Mark READY only when the upload passed validation; otherwise record the
+  // count but leave status so the user knows it still needs fixing.
+  if (!hasErrors && (projectObject.status === 'PENDING' || projectObject.status === 'MAPPED')) {
     await prisma.projectObject.update({
       where: { id: projectObject.id },
       data: { status: 'READY', recordCount: dataRows },
+    })
+  } else {
+    await prisma.projectObject.update({
+      where: { id: projectObject.id },
+      data: { recordCount: dataRows },
     })
   }
 

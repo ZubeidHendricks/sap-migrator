@@ -21,6 +21,21 @@ interface ProjectObject {
   status: string
 }
 
+interface ValidationIssue {
+  row: number
+  field: string
+  severity: 'ERROR' | 'WARNING'
+  message: string
+}
+
+interface ValidationErrors {
+  totalRows: number
+  validRows: number
+  errorRows: number
+  warningRows: number
+  issues: ValidationIssue[]
+}
+
 interface UploadedTemplate {
   id: string
   filename: string
@@ -28,6 +43,7 @@ interface UploadedTemplate {
   rowCount: number | null
   status: string
   createdAt: string
+  validationErrors?: ValidationErrors | null
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -109,7 +125,10 @@ export default function TemplatesPage() {
       setUploadError((e) => ({ ...e, [objectKey]: data.error || 'Upload failed' }))
     } else {
       setUploads((u) => ({ ...u, [objectKey]: [data, ...(u[objectKey] ?? [])] }))
-      setObjects((os) => os.map((o) => o.objectKey === objectKey ? { ...o, status: 'READY' } : o))
+      const ok = (data.validationErrors?.errorRows ?? 0) === 0
+      if (ok) {
+        setObjects((os) => os.map((o) => o.objectKey === objectKey ? { ...o, status: 'READY' } : o))
+      }
     }
     setUploading(null)
   }
@@ -204,17 +223,51 @@ export default function TemplatesPage() {
                     <CardDescription className="text-xs font-mono">{`Source_data_for_${obj.objectKey}.xml`}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {/* Latest upload info */}
-                    {latestUpload && (
-                      <div className="bg-green-50 rounded-lg p-3 text-xs text-green-800 space-y-0.5">
-                        <p className="font-medium flex items-center gap-1.5">
-                          <FileCheck className="w-3 h-3" /> {latestUpload.filename}
-                        </p>
-                        <p className="text-green-600">
-                          {latestUpload.rowCount != null ? `${latestUpload.rowCount} data rows` : 'Uploaded'} · {formatBytes(latestUpload.fileSize)}
-                        </p>
-                      </div>
-                    )}
+                    {/* Latest upload info + validation summary */}
+                    {latestUpload && (() => {
+                      const v = latestUpload.validationErrors
+                      const hasErrors = (v?.errorRows ?? 0) > 0
+                      const hasWarnings = (v?.warningRows ?? 0) > 0
+                      const tone = hasErrors
+                        ? 'bg-red-50 text-red-800'
+                        : hasWarnings
+                          ? 'bg-yellow-50 text-yellow-800'
+                          : 'bg-green-50 text-green-800'
+                      return (
+                        <div className={`rounded-lg p-3 text-xs space-y-1 ${tone}`}>
+                          <p className="font-medium flex items-center gap-1.5">
+                            {hasErrors ? <AlertTriangle className="w-3 h-3" /> : <FileCheck className="w-3 h-3" />}
+                            {latestUpload.filename}
+                          </p>
+                          <p className="opacity-80">
+                            {latestUpload.rowCount != null ? `${latestUpload.rowCount} data rows` : 'Uploaded'} · {formatBytes(latestUpload.fileSize)}
+                          </p>
+                          {v && (
+                            <div className="flex items-center gap-3 pt-1 font-medium">
+                              <span className="text-green-700">{v.validRows} valid</span>
+                              {v.errorRows > 0 && <span className="text-red-600">{v.errorRows} errors</span>}
+                              {v.warningRows > 0 && <span className="text-yellow-700">{v.warningRows} warnings</span>}
+                            </div>
+                          )}
+                          {v && v.issues.length > 0 && (
+                            <ul className="mt-1.5 space-y-0.5 border-t border-current/10 pt-1.5">
+                              {v.issues.slice(0, 5).map((iss, i) => (
+                                <li key={i} className="flex gap-1.5 leading-snug">
+                                  <span className="opacity-50 shrink-0">row {iss.row}</span>
+                                  <span>{iss.message}</span>
+                                </li>
+                              ))}
+                              {v.issues.length > 5 && (
+                                <li className="opacity-60">+{v.issues.length - 5} more issue{v.issues.length - 5 !== 1 ? 's' : ''}…</li>
+                              )}
+                            </ul>
+                          )}
+                          {hasErrors && (
+                            <p className="pt-1 opacity-80">Fix these rows and re-upload before running a migration.</p>
+                          )}
+                        </div>
+                      )
+                    })()}
 
                     {uploadError[obj.objectKey] && (
                       <div className="flex items-start gap-2 text-xs text-red-700 bg-red-50 p-2 rounded-lg">
