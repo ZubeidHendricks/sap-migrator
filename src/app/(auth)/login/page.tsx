@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { signIn } from 'next-auth/react'
+import { useState, useEffect } from 'react'
+import { signIn, getProviders } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ShieldCheck } from 'lucide-react'
 import { useT } from '@/lib/i18n/context'
 
 export default function LoginPage() {
@@ -19,6 +19,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [ssoProvider, setSsoProvider] = useState<{ id: string; name: string } | null>(null)
+
+  useEffect(() => {
+    getProviders().then((p) => {
+      const oidc = p?.oidc
+      if (oidc) setSsoProvider({ id: oidc.id, name: oidc.name })
+    })
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('error') === 'NoAccount') {
+      setError('No SAP Migrator account exists for that email. Ask your admin to invite you first.')
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -85,6 +97,25 @@ export default function LoginPage() {
           <Button type="submit" className="w-full bg-[#1e3a5f] hover:bg-[#2a4f7c]" disabled={loading}>
             {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('auth.signingIn')}</> : t('auth.signIn')}
           </Button>
+
+          {ssoProvider && (
+            <>
+              <div className="flex items-center gap-3 w-full">
+                <div className="h-px bg-gray-200 flex-1" />
+                <span className="text-xs text-gray-400">or</span>
+                <div className="h-px bg-gray-200 flex-1" />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => signIn(ssoProvider.id, { callbackUrl: '/dashboard' })}
+              >
+                <ShieldCheck className="h-4 w-4" /> Sign in with {ssoProvider.name}
+              </Button>
+            </>
+          )}
+
           <p className="text-sm text-center text-muted-foreground">
             {t('auth.noAccount')}{' '}
             <Link href="/register" className="text-[#1e3a5f] font-medium hover:underline">
