@@ -14,19 +14,21 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SearchDialog } from './search-dialog'
+import { useT } from '@/lib/i18n/context'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/catalog', label: 'Catalog', icon: Boxes },
-  { href: '/insights', label: 'Insights', icon: Sparkles },
-  { href: '/activity', label: 'Activity', icon: Activity },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard', key: 'nav.dashboard' as const, icon: LayoutDashboard },
+  { href: '/projects', key: 'nav.projects' as const, icon: FolderKanban },
+  { href: '/catalog', key: 'nav.catalog' as const, icon: Boxes },
+  { href: '/insights', key: 'nav.insights' as const, icon: Sparkles },
+  { href: '/activity', key: 'nav.activity' as const, icon: Activity },
+  { href: '/settings', key: 'nav.settings' as const, icon: Settings },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const t = useT()
   const [branding, setBranding] = useState<{ name?: string; brandColor?: string | null; logoUrl?: string | null }>({})
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, key, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link
@@ -81,7 +83,7 @@ export function Sidebar() {
               )}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              {label}
+              {t(key)}
             </Link>
           )
         })}
@@ -112,7 +114,7 @@ export function Sidebar() {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/login' })} className="text-red-600 cursor-pointer">
               <LogOut className="w-4 h-4 mr-2" />
-              Sign out
+              {t('nav.signOut')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -18,6 +18,8 @@ import { Building2, Users, Shield, Plus, Trash2, Loader2, Copy, CheckCircle, Key
 import { Switch } from '@/components/ui/switch'
 import { ApiKeysCard } from '@/components/settings/api-keys-card'
 import { BrandingCard } from '@/components/settings/branding-card'
+import { LanguageCard } from '@/components/settings/language-card'
+import { useT } from '@/lib/i18n/context'
 
 interface Member { id: string; name: string | null; email: string; role: string; createdAt: string }
 interface NotifPrefs { runComplete: boolean; memberInvited: boolean }
@@ -40,6 +42,7 @@ export default function SettingsPage() {
   const [pwSuccess, setPwSuccess] = useState(false)
 
   const isAdmin = session?.user.role === 'ADMIN'
+  const t = useT()
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ runComplete: true, memberInvited: true })
   const [profileForm, setProfileForm] = useState<ProfileForm>({ name: '' })
   const [profileSaving, setProfileSaving] = useState(false)
@@ -133,8 +136,8 @@ export default function SettingsPage() {
   return (
     <div className="p-8 max-w-3xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500 mt-0.5">Manage your workspace and team</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
+        <p className="text-gray-500 mt-0.5">{t('settings.subtitle')}</p>
       </div>
 
       <div className="space-y-6">
@@ -423,6 +426,9 @@ export default function SettingsPage() {
             </p>
           </CardContent>
         </Card>
+
+        {/* Language (Phase 4 — i18n) */}
+        <LanguageCard />
 
         {/* Branding (Phase 4 — white-label) */}
         <BrandingCard isAdmin={isAdmin} />
