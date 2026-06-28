@@ -50,6 +50,7 @@ export interface ValidationIssue {
   field: string // technical field name
   severity: IssueSeverity
   message: string
+  value?: string // the offending cell value (enables auto-fix)
 }
 
 export interface ValidationSummary {
@@ -69,25 +70,25 @@ export function validateField(field: MigrationObjectField, rawValue: string | un
 
   if (value === '') {
     if (field.required) {
-      return { row: 0, field: field.name, severity: 'ERROR', message: `Required field ${field.name} is missing` }
+      return { row: 0, field: field.name, severity: 'ERROR', message: `Required field ${field.name} is missing`, value: '' }
     }
     return null // empty optional field — nothing to check
   }
 
   if (field.maxLength != null && value.length > field.maxLength) {
-    return { row: 0, field: field.name, severity: 'ERROR', message: `${field.name} exceeds maximum length of ${field.maxLength} (got ${value.length})` }
+    return { row: 0, field: field.name, severity: 'ERROR', message: `${field.name} exceeds maximum length of ${field.maxLength} (got ${value.length})`, value }
   }
 
   if (field.type === 'number' && !NUMBER_RE.test(value)) {
-    return { row: 0, field: field.name, severity: 'ERROR', message: `${field.name} must be numeric (got "${value}")` }
+    return { row: 0, field: field.name, severity: 'ERROR', message: `${field.name} must be numeric (got "${value}")`, value }
   }
 
   if (field.type === 'date' && !DATE_RE.test(value)) {
-    return { row: 0, field: field.name, severity: 'ERROR', message: `${field.name} must be a date as YYYY-MM-DD or YYYYMMDD (got "${value}")` }
+    return { row: 0, field: field.name, severity: 'ERROR', message: `${field.name} must be a date as YYYY-MM-DD or YYYYMMDD (got "${value}")`, value }
   }
 
   if (field.type === 'boolean' && value !== 'X' && value.toLowerCase() !== 'x') {
-    return { row: 0, field: field.name, severity: 'WARNING', message: `${field.name} should be "X" or blank (got "${value}")` }
+    return { row: 0, field: field.name, severity: 'WARNING', message: `${field.name} should be "X" or blank (got "${value}")`, value }
   }
 
   return null
