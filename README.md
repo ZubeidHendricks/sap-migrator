@@ -1,9 +1,10 @@
 # SAP Migrator
 
 A multi-tenant SaaS platform for managing **SAP S/4HANA data migrations** end to end —
-object selection, value mapping, XML template generation, simulation & migration runs,
-error correction, audit trails, and **data extraction out of SAP** into external
-databases. No SAP login required to use the platform itself.
+object selection, value mapping, XML template generation, validation, simulation &
+migration runs, approval workflow, audit trails, AI-assisted data quality, and reverse
+**data extraction out of SAP** into external databases. No SAP login required to use the
+platform itself.
 
 **Live:** https://sap-migrator-5vybv.ondigitalocean.app
 **GitHub:** https://github.com/ZubeidHendricks/sap-migrator
@@ -21,101 +22,107 @@ Fiori app) to load legacy data. The cockpit requires:
 - Records validated against SAP rules before the production run
 
 SAP Migrator handles all of that preparation — work teams currently do in disconnected
-spreadsheets — and adds team management, audit trails, run comparison, and a reverse
-**Data Extract** mode for moving SAP data into PostgreSQL, Snowflake, BigQuery, or CSV.
+spreadsheets — and layers on team collaboration, governance, AI-assisted data quality,
+a public API, and a reverse **Data Extract** mode for moving SAP data into PostgreSQL,
+Snowflake, BigQuery, or CSV.
 
 ---
 
 ## Features
 
-### Accounts & teams
+### Accounts, teams & access
 - Multi-tenant workspaces — Organization → User → Project, fully isolated per tenant
-- Roles: **Admin** / **Migrator** / **Viewer**
-- Email invites via Resend with auto-generated temp passwords
-- Forced password change on first login; forgot/reset password via email token
-- Profile editing and email notification preferences
+- Roles: **Admin** / **Migrator** / **Viewer**, plus **field-level access** (mark sensitive fields Admin-only)
+- Email invites via Resend; forced first-login password change; forgot/reset password
+- **OIDC Single Sign-On** (Azure AD, Okta, Google Workspace) — optional, tenant-safe
 - No billing — open for corporate use
 
-### Migration projects
+### Migration projects & objects
 - Two SAP approaches: **Staging Tables** (XML upload) and **Direct Transfer** (RFC)
-- Project settings: status, go-live date, source/target systems
-- **Clone** a project (copies objects + mappings); **export** a full CSV report
-
-### Objects, mapping & templates
-- Catalog of 20+ real SAP objects with field definitions, tables, required flags, examples
-- Per-object value mapping (source code → SAP code), with **CSV import/export**
+- Catalog of 22 built-in SAP objects **plus custom object definitions** your org adds
+- Project settings, **clone**, and status export to **CSV and PDF**
 - One-click **MS Excel XML Spreadsheet 2003** template generation per object
-- Template upload tracking (row count, file size); mark objects Done
 
-### Runs (simulate & execute)
+### Value mapping & AI
+- Per-object value mapping (source → SAP code), with **CSV import/export**
+- **AI field mapping** — paste legacy column headers → ranked SAP field suggestions
+- **AI value mapping** — paste source values → suggested SAP target codes
+- Powered by **Claude** when configured, with deterministic fallbacks that never fail
+
+### Data quality
+- **Pre-upload validation** against each field's SAP rules (required, length, type, date/number)
+- **Data profiling** — fill rate, distinct count, top values, numeric ranges per field
+- **Duplicate & anomaly detection** — duplicate keys, numeric outliers (median/MAD), format outliers
+- **AI auto-fix** — propose corrected values for failing cells, respecting SAP conventions
+
+### Runs (simulate, approve & execute)
 - **Simulation** runs validate every record without committing (SAP `TESTRUN` equivalent)
-- **Migration** runs with record-level result tracking (success / error / warning)
-- Downloadable **correction file** (CSV of failed records) to fix and re-upload
-- **Run comparison** — diff two runs side by side
-- Email notification to admins on run completion
+- **Migration** runs with record-level results (success / error / warning)
+- **Approval workflow** — a Migrator's migration run needs Admin sign-off before it executes
+- Downloadable **correction file**; **run comparison**; completion notifications (in-app + email)
 
 ### Data Extract (reverse migration)
-- Extract data **from** SAP **into** PostgreSQL, Snowflake, BigQuery, or CSV download
-- Per-target connection config, object selection, async job runner, job history with row counts
+- Extract data **from** SAP **into** PostgreSQL (real writes), Snowflake, BigQuery, or **CSV download**
+- Connector architecture: per-target config, object selection, async job runner, job history
 
-### Visibility & governance
+### Collaboration
+- **Object ownership** — assign objects to team members
+- **Comment threads** on objects; **notification center** (bell, unread badge, mark-read)
+
+### Intelligence & visibility
 - **Dashboard** — projects, readiness %, records migrated, error rates, recent activity
-- **Audit log** — every action (project, run, member, connection, password) with user + timestamp
-- **Global search** (⌘K) across projects and objects
-- Per-project SAP connection settings
+- **Insights** — data-quality scores (A–F), timeline estimates, cross-project analytics
+- **Ask AI** — natural-language questions about a project, answered from its real data
+- **Audit log** + **global ⌘K search** across projects and objects
 
-> **Note:** migration runs and data extracts are currently **simulated** — the platform
-> manages the full workflow, validation, mapping, templates, and tracking. Wiring the
-> run/extract engines to live SAP connectivity (RFC / Migration Cockpit staging API /
-> JDBC targets) is the next milestone.
+### Platform
+- **White-label branding** — per-org accent color, logo, and workspace name
+- **Multi-language** — English, German, French, Afrikaans, Arabic (with RTL)
+- **Public REST API (v1)** with org-scoped API keys
+
+> **Note:** migration runs and the SAP side of Data Extract are currently **simulated** —
+> the platform manages the full workflow (mapping, validation, templates, quality, tracking)
+> and CSV/PostgreSQL extract targets are real. Wiring the run engine and SAP source to live
+> connectivity (RFC / Migration Cockpit staging API) is the remaining milestone.
 
 ---
 
 ## Tech stack
 
 - **Framework:** Next.js 14 (App Router, TypeScript, standalone output)
-- **Auth:** NextAuth.js v4 — JWT strategy, credentials provider, bcrypt
+- **Auth:** NextAuth.js v4 — JWT, credentials + optional OIDC, bcrypt
 - **Database:** PostgreSQL 16 via Prisma ORM
-- **UI:** shadcn/ui (Radix UI + Tailwind CSS)
+- **UI:** shadcn/ui (Radix UI + Tailwind CSS), client-side i18n with RTL
+- **AI:** Anthropic Claude (`claude-haiku-4-5`) with deterministic fallbacks
 - **Email:** Resend (lazy-init — no key = silent no-op)
-- **Tests:** Vitest (60 tests) + GitHub Actions CI (typecheck + tests + build)
-- **Deployment:** DigitalOcean App Platform (Dockerfile build) + Managed PostgreSQL
+- **Tests:** Vitest (**213 tests**) + GitHub Actions CI (typecheck + tests + build)
+- **Deployment:** DigitalOcean App Platform (Dockerfile) + Managed PostgreSQL
 
 ---
 
 ## Local development
 
-### Prerequisites
-- Node.js 20+
-- PostgreSQL running locally
-
-### Setup
 ```bash
 git clone https://github.com/ZubeidHendricks/sap-migrator.git
 cd sap-migrator
 npm install
-cp .env.example .env   # then fill in the values below
+cp .env.example .env   # then fill in the values
+npx prisma db push     # apply schema
+npm run dev            # http://localhost:3000
+npm test               # 213 Vitest tests
 ```
 
+### Environment
 ```env
 DATABASE_URL="postgresql://postgres:password@localhost:5432/sap_migrator"
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="any-random-string-for-local-dev"
-# optional — without it, emails are a silent no-op
-RESEND_API_KEY=""
-```
-
-```bash
-npx prisma db push     # apply schema
-npm run dev            # http://localhost:3000
-```
-
-Register an organization and you're in.
-
-### Tests
-```bash
-npm test          # run the Vitest suite (60 tests)
-npm run test:watch
+# all optional:
+RESEND_API_KEY=""        # email (silent no-op without it)
+ANTHROPIC_API_KEY=""     # enables Claude AI features (falls back to deterministic)
+OIDC_ISSUER=""           # enables SSO (with OIDC_CLIENT_ID / OIDC_CLIENT_SECRET)
+OIDC_CLIENT_ID=""
+OIDC_CLIENT_SECRET=""
 ```
 
 ---
@@ -124,55 +131,49 @@ npm run test:watch
 
 ```
 Organization ─┬─ User (ADMIN | MIGRATOR | VIEWER)
-              ├─ AuditLog (action, entity, user, timestamp)
+              ├─ AuditLog · ApiKey · Notification · CustomObject
+              ├─ brandColor / logoUrl (white-label)
               └─ Project (STAGING_TABLES | DIRECT_TRANSFER)
-                   ├─ SapConnection (host, client, credentials)
-                   ├─ ProjectObject (objectKey, status)
-                   │     ├─ ValueMapping (fieldName, sourceValue, targetValue)
-                   │     └─ MigrationTemplate (filename, rowCount)
-                   ├─ MigrationRun (SIMULATION | MIGRATION, counts)
-                   │     └─ RunRecord (recordKey, SUCCESS | ERROR | WARNING)
+                   ├─ SapConnection
+                   ├─ ProjectObject (status, assignedTo, restrictedFields)
+                   │     ├─ ValueMapping · Comment
+                   │     └─ MigrationTemplate (validationErrors, profile, qualityFlags)
+                   ├─ MigrationRun (type, status incl. AWAITING_APPROVAL, approval fields)
+                   │     └─ RunRecord (SUCCESS | ERROR | WARNING)
                    └─ DataExtractJob (POSTGRESQL | SNOWFLAKE | BIGQUERY | CSV_DOWNLOAD)
 
-PasswordResetToken (email, token, expires)
+PasswordResetToken
 ```
 
 ---
 
 ## Deployment
 
-Every push to `main` triggers an automatic build and deploy on DigitalOcean App
-Platform (`deploy_on_push`). See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the
-startup/migration model, health-check behavior, and how to verify a deploy actually
-went live.
-
-Schema is applied at container startup by `start.sh` (`prisma db push`), which is
-written to never block the server from starting. Secrets (`DATABASE_URL`,
-`NEXTAUTH_SECRET`, `RESEND_API_KEY`) live only in DO's encrypted env store.
+Every push to `main` triggers an automatic build + deploy on DigitalOcean App Platform
+(`deploy_on_push`). See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the startup/migration
+model, health-check behavior, and how to verify a deploy actually went live. Schema is
+applied at container startup by `start.sh` (resilient — never blocks the server from
+booting). Secrets live only in DO's encrypted env store, never committed.
 
 ---
 
 ## Public API (v1)
 
-Programmatic access for ERP integrators and SI partners. Create an API key in
-**Settings → API Keys** (shown once), then authenticate with a Bearer token:
+Create an API key in **Settings → API Keys** (shown once), then use a Bearer token:
 
 ```bash
-# List projects
 curl https://sap-migrator-5vybv.ondigitalocean.app/api/v1/projects \
   -H "Authorization: Bearer smk_live_xxx"
 
-# Create a project
 curl -X POST https://sap-migrator-5vybv.ondigitalocean.app/api/v1/projects \
   -H "Authorization: Bearer smk_live_xxx" -H "Content-Type: application/json" \
   -d '{"name":"Q3 Migration","approach":"STAGING_TABLES"}'
 
-# List the SAP object catalog (objects + fields)
 curl https://sap-migrator-5vybv.ondigitalocean.app/api/v1/catalog \
   -H "Authorization: Bearer smk_live_xxx"
 ```
 
-Keys are org-scoped, stored only as a SHA-256 hash, and can be revoked anytime.
+Keys are org-scoped, stored only as a SHA-256 hash, and revocable.
 
 ---
 
@@ -180,14 +181,15 @@ Keys are org-scoped, stored only as a SHA-256 hash, and can be revoked anytime.
 
 ```
 1. Create project   → Staging Tables or Direct Transfer
-2. Select objects   → pick from the SAP object catalog
-3. Map values       → translate source codes to SAP codes (or import a CSV)
-4. Get templates    → download pre-formatted XML files
-5. Fill & upload    → paste legacy data, upload filled templates
-6. Simulate         → validate all records, zero commits to SAP
-7. Fix errors       → download correction CSV, fix, re-upload, re-simulate
-8. Migrate          → production run with full result tracking
-9. (Optional) Extract → pull SAP data out to PostgreSQL / Snowflake / BigQuery / CSV
+2. Select objects   → built-in catalog or your custom objects
+3. Map values       → manual, CSV import, or AI suggestions
+4. Get templates    → download pre-formatted XML
+5. Fill & upload    → validated on upload; profiled; duplicates/anomalies flagged
+6. Fix errors       → AI auto-fix suggestions, or correction CSV, then re-upload
+7. Simulate         → validate all records, zero commits to SAP
+8. Approve          → Admin signs off a Migrator's migration run
+9. Migrate          → production run with full result tracking
+10. (Optional) Extract → pull SAP data out to PostgreSQL / Snowflake / BigQuery / CSV
 ```
 
 ---
