@@ -8,9 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 import {
   ArrowLeft, Download, Upload, FileSpreadsheet, Info, CheckCircle,
-  FileCheck, Loader2, AlertTriangle,
+  FileCheck, Loader2, AlertTriangle, MessageSquare, Send,
 } from 'lucide-react'
 
 interface ProjectObject {
@@ -19,7 +21,11 @@ interface ProjectObject {
   objectName: string
   category: string
   status: string
+  assignedToId?: string | null
 }
+
+interface Member { id: string; name: string | null; email: string }
+interface CommentItem { id: string; body: string; createdAt: string; author: { id: string; name: string | null; email: string } }
 
 interface ValidationIssue {
   row: number
@@ -65,13 +71,19 @@ export default function TemplatesPage() {
   const [uploading, setUploading] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<Record<string, string>>({})
   const [markingDone, setMarkingDone] = useState<string | null>(null)
+  const [members, setMembers] = useState<Member[]>([])
+  const [commentsFor, setCommentsFor] = useState<ProjectObject | null>(null)
+  const [comments, setComments] = useState<CommentItem[]>([])
+  const [commentBody, setCommentBody] = useState('')
+  const [postingComment, setPostingComment] = useState(false)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/projects/${params.id}/objects`).then((r) => r.json()),
       fetch(`/api/projects/${params.id}/upload`).then((r) => r.json()),
-    ]).then(([objs, templates]: [ProjectObject[], (UploadedTemplate & { projectObject: { objectKey: string } })[]] ) => {
+      fetch(`/api/organizations/members`).then((r) => r.json()),
+    ]).then(([objs, templates, mem]: [ProjectObject[], (UploadedTemplate & { projectObject: { objectKey: string } })[], Member[]] ) => {
       setObjects(objs)
       const byKey: Record<string, UploadedTemplate[]> = {}
       for (const t of templates) {
@@ -80,8 +92,36 @@ export default function TemplatesPage() {
         byKey[key].push(t)
       }
       setUploads(byKey)
+      if (Array.isArray(mem)) setMembers(mem)
     }).finally(() => setLoading(false))
   }, [params.id])
+
+  async function assignObject(objectId: string, assignedToId: string) {
+    const res = await fetch(`/api/projects/${params.id}/objects/assign`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objectId, assignedToId: assignedToId || null }),
+    })
+    if (res.ok) setObjects((os) => os.map((o) => o.id === objectId ? { ...o, assignedToId: assignedToId || null } : o))
+  }
+
+  async function openComments(obj: ProjectObject) {
+    setCommentsFor(obj); setComments([]); setCommentBody('')
+    const res = await fetch(`/api/projects/${params.id}/objects/comments?objectId=${obj.id}`)
+    if (res.ok) setComments(await res.json())
+  }
+
+  async function postComment() {
+    if (!commentsFor || !commentBody.trim()) return
+    setPostingComment(true)
+    const res = await fetch(`/api/projects/${params.id}/objects/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objectId: commentsFor.id, body: commentBody }),
+    })
+    if (res.ok) { const c = await res.json(); setComments((cs) => [...cs, c]); setCommentBody('') }
+    setPostingComment(false)
+  }
 
   async function downloadTemplate(objectKey: string) {
     setDownloading(objectKey)
@@ -223,6 +263,28 @@ export default function TemplatesPage() {
                     <CardDescription className="text-xs font-mono">{`Source_data_for_${obj.objectKey}.xml`}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {/* Collaboration: owner + comments */}
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={obj.assignedToId ?? ''}
+                        onChange={(e) => assignObject(obj.id, e.target.value)}
+                        className="flex-1 h-8 rounded-md border border-gray-200 text-xs px-2 text-gray-700 bg-white"
+                        title="Assign owner"
+                      >
+                        <option value="">Unassigned</option>
+                        {members.map((m) => (
+                          <option key={m.id} value={m.id}>{m.name ?? m.email}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => openComments(obj)}
+                        className="h-8 px-2.5 rounded-md border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 shrink-0"
+                        title="Comments"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> Discuss
+                      </button>
+                    </div>
+
                     {/* Latest upload info + validation summary */}
                     {latestUpload && (() => {
                       const v = latestUpload.validationErrors
@@ -396,6 +458,52 @@ export default function TemplatesPage() {
           </Card>
         </>
       )}
+
+      {/* Comments dialog */}
+      <Dialog open={!!commentsFor} onOpenChange={(o) => !o && setCommentsFor(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-[#1e3a5f]" /> {commentsFor?.objectName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="max-h-72 overflow-y-auto space-y-3 pr-1">
+              {comments.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No comments yet. Start the discussion.</p>
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id} className="flex gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-blue-50 text-[#1e3a5f] text-xs font-semibold flex items-center justify-center shrink-0">
+                      {(c.author.name ?? c.author.email).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-500">
+                        <span className="font-medium text-gray-700">{c.author.name ?? c.author.email}</span>
+                        {' · '}{new Date(c.createdAt).toLocaleString('en-ZA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">{c.body}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex items-end gap-2 border-t pt-3">
+              <Textarea
+                rows={2}
+                placeholder="Write a comment…"
+                value={commentBody}
+                onChange={(e) => setCommentBody(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) postComment() }}
+                className="flex-1 resize-none"
+              />
+              <Button onClick={postComment} disabled={postingComment || !commentBody.trim()} className="bg-[#1e3a5f] hover:bg-[#2a4f7c] shrink-0">
+                {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

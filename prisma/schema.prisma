@@ -108,6 +108,9 @@ model User {
   accounts       Account[]
   sessions       Session[]
   auditLogs      AuditLog[]
+  assignedObjects ProjectObject[] @relation("ObjectAssignee")
+  comments        Comment[]
+  notifications   Notification[]
 }
 
 model Account {
@@ -220,6 +223,32 @@ model AuditLog {
   createdAt      DateTime     @default(now())
 }
 
+model Comment {
+  id              String        @id @default(cuid())
+  projectObjectId String
+  projectObject   ProjectObject @relation(fields: [projectObjectId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User          @relation(fields: [authorId], references: [id])
+  body            String        @db.Text
+  createdAt       DateTime      @default(now())
+
+  @@index([projectObjectId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
 model SapConnection {
   id             String    @id @default(cuid())
   projectId      String    @unique
@@ -246,6 +275,9 @@ model ProjectObject {
   status      String              @default("PENDING")
   recordCount Int?
   restrictedFields Json?          // field names only Admins may map (field-level access)
+  assignedToId String?
+  assignedTo   User?              @relation("ObjectAssignee", fields: [assignedToId], references: [id])
+  comments    Comment[]
   mappings    ValueMapping[]
   templates   MigrationTemplate[]
   runRecords  RunRecord[]

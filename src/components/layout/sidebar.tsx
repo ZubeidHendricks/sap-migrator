@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SearchDialog } from './search-dialog'
+import { NotificationBell } from './notification-bell'
 import { useT } from '@/lib/i18n/context'
 
 const navItems = [
@@ -56,12 +57,13 @@ export function Sidebar() {
         <span className="font-bold text-sm truncate">{branding.name || 'SAP Migrator'}</span>
       </div>
 
-      {/* Org badge */}
-      <div className="px-5 py-3 border-b border-white/10">
-        <div className="flex items-center gap-2 text-white/60 text-xs">
+      {/* Org badge + notifications */}
+      <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-white/60 text-xs min-w-0">
           <Building2 className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">{session?.user?.organizationName ?? '…'}</span>
         </div>
+        <NotificationBell />
       </div>
 
       {/* Search */}

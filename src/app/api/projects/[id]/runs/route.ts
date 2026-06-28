@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { sendRunCompleteEmail } from '@/lib/email'
 import { logAudit } from '@/lib/audit'
 import { isValidRunType } from '@/lib/validation'
+import { notify } from '@/lib/notifications'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -112,11 +113,18 @@ async function simulateRun(
     metadata: { runType, totalRecords, successCount, errorCount, warningCount },
   })
 
-  // Notify all admins in the org
+  // Notify all admins in the org (email + in-app)
   const admins = await prisma.user.findMany({
     where: { organizationId: orgId, role: 'ADMIN' },
-    select: { email: true },
+    select: { id: true, email: true },
   })
+  await notify(admins.map((a) => ({
+    userId: a.id,
+    type: 'run.completed' as const,
+    title: `${runType === 'SIMULATION' ? 'Simulation' : 'Migration'} completed — ${projectName}`,
+    body: `${successCount} ok · ${errorCount} errors · ${warningCount} warnings of ${totalRecords} records`,
+    link: `/projects/${projectId}/runs`,
+  })))
   const appUrl = process.env.NEXTAUTH_URL || 'https://sap-migrator-5vybv.ondigitalocean.app'
   await sendRunCompleteEmail({
     to: admins.map((u) => u.email),
