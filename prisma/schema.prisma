@@ -32,9 +32,11 @@ enum RunType {
 
 enum RunStatus {
   PENDING
+  AWAITING_APPROVAL
   RUNNING
   COMPLETED
   FAILED
+  CANCELLED
 }
 
 enum RecordStatus {
@@ -322,6 +324,10 @@ model MigrationRun {
   successCount Int          @default(0)
   errorCount   Int          @default(0)
   warningCount Int          @default(0)
+  requestedById String?
+  approvedById  String?
+  approvalNote  String?
+  approvedAt    DateTime?
   records      RunRecord[]
   createdAt    DateTime     @default(now())
 }

@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
-import { sendRunCompleteEmail } from '@/lib/email'
 import { logAudit } from '@/lib/audit'
 import { isValidRunType } from '@/lib/validation'
 import { notify } from '@/lib/notifications'
+import { executeRun } from '@/lib/run-executor'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -36,118 +36,64 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   })
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  if (session.user.role === 'VIEWER') {
+    return NextResponse.json({ error: 'Viewers cannot launch runs' }, { status: 403 })
+  }
+
   const { type } = await req.json()
   if (!isValidRunType(type)) {
     return NextResponse.json({ error: 'type must be SIMULATION or MIGRATION' }, { status: 400 })
   }
 
+  // Migration runs launched by a non-Admin require Admin approval before they
+  // execute. Simulations (non-committing) and Admin-launched migrations run now.
+  const needsApproval = type === 'MIGRATION' && session.user.role !== 'ADMIN'
+
+  if (needsApproval) {
+    const run = await prisma.migrationRun.create({
+      data: {
+        projectId: params.id, type, status: 'AWAITING_APPROVAL',
+        requestedById: session.user.id,
+      },
+      include: { records: true },
+    })
+    await logAudit({
+      organizationId: session.user.organizationId, userId: session.user.id,
+      action: 'run.submitted', entityType: 'run', entityId: run.id, entityName: project.name,
+    })
+    // Notify all admins that a run awaits approval.
+    const admins = await prisma.user.findMany({
+      where: { organizationId: session.user.organizationId, role: 'ADMIN' },
+      select: { id: true },
+    })
+    await notify(admins.map((a) => ({
+      userId: a.id,
+      type: 'mention' as const,
+      title: `Migration run awaiting approval — ${project.name}`,
+      body: `${session.user.name ?? session.user.email} requested a migration run`,
+      link: `/projects/${params.id}/runs`,
+    })))
+    return NextResponse.json(run, { status: 201 })
+  }
+
   const run = await prisma.migrationRun.create({
-    data: { projectId: params.id, type, status: 'RUNNING', startedAt: new Date() },
+    data: {
+      projectId: params.id, type, status: 'RUNNING', startedAt: new Date(),
+      requestedById: session.user.id,
+      ...(type === 'MIGRATION' ? { approvedById: session.user.id, approvedAt: new Date() } : {}),
+    },
     include: { records: true },
   })
 
-  simulateRun(
-    run.id,
-    project.objects.map((o) => o.id),
-    params.id,
-    project.name,
-    type,
-    session.user.organizationId,
-    session.user.id,
-  ).catch(console.error)
+  executeRun({
+    runId: run.id,
+    objectIds: project.objects.map((o) => o.id),
+    projectId: params.id,
+    projectName: project.name,
+    runType: type,
+    orgId: session.user.organizationId,
+    userId: session.user.id,
+  }).catch(console.error)
 
   return NextResponse.json(run, { status: 201 })
-}
-
-async function simulateRun(
-  runId: string,
-  objectIds: string[],
-  projectId: string,
-  projectName: string,
-  runType: 'SIMULATION' | 'MIGRATION',
-  orgId: string,
-  userId: string,
-) {
-  await new Promise((r) => setTimeout(r, 800))
-
-  let totalRecords = 0
-  let successCount = 0
-  let errorCount = 0
-  let warningCount = 0
-  const records: {
-    runId: string; projectObjectId: string; recordKey: string
-    status: 'SUCCESS' | 'ERROR' | 'WARNING'; message?: string
-  }[] = []
-
-  for (const objectId of objectIds) {
-    const count = Math.floor(Math.random() * 50) + 10
-    totalRecords += count
-    for (let i = 1; i <= count; i++) {
-      const rand = Math.random()
-      let status: 'SUCCESS' | 'ERROR' | 'WARNING' = 'SUCCESS'
-      let message: string | undefined
-      if (rand < 0.08) {
-        status = 'ERROR'; errorCount++; message = pickError()
-      } else if (rand < 0.15) {
-        status = 'WARNING'; warningCount++; message = 'Field truncated to allowed length'
-      } else {
-        successCount++
-      }
-      records.push({ runId, projectObjectId: objectId, recordKey: `REC-${objectId.slice(-4)}-${i}`, status, message })
-    }
-  }
-
-  await prisma.runRecord.createMany({ data: records })
-  await prisma.migrationRun.update({
-    where: { id: runId },
-    data: { status: 'COMPLETED', completedAt: new Date(), totalRecords, successCount, errorCount, warningCount },
-  })
-
-  await logAudit({
-    organizationId: orgId,
-    userId,
-    action: 'run.completed',
-    entityType: 'run',
-    entityId: runId,
-    entityName: projectName,
-    metadata: { runType, totalRecords, successCount, errorCount, warningCount },
-  })
-
-  // Notify all admins in the org (email + in-app)
-  const admins = await prisma.user.findMany({
-    where: { organizationId: orgId, role: 'ADMIN' },
-    select: { id: true, email: true },
-  })
-  await notify(admins.map((a) => ({
-    userId: a.id,
-    type: 'run.completed' as const,
-    title: `${runType === 'SIMULATION' ? 'Simulation' : 'Migration'} completed — ${projectName}`,
-    body: `${successCount} ok · ${errorCount} errors · ${warningCount} warnings of ${totalRecords} records`,
-    link: `/projects/${projectId}/runs`,
-  })))
-  const appUrl = process.env.NEXTAUTH_URL || 'https://sap-migrator-5vybv.ondigitalocean.app'
-  await sendRunCompleteEmail({
-    to: admins.map((u) => u.email),
-    projectName,
-    runType,
-    successCount,
-    errorCount,
-    warningCount,
-    totalRecords,
-    runUrl: `${appUrl}/projects/${projectId}/runs`,
-  }).catch(() => {})
-}
-
-function pickError() {
-  const errors = [
-    'Required field BUKRS is missing',
-    'Value "EUR" not found in value mapping for WAERS',
-    'Date format invalid: expected YYYY-MM-DD',
-    'Account group GRAL does not exist in target system',
-    'Duplicate key: record already exists',
-    'Field KUNNR exceeds maximum length of 10',
-    'Cost centre 1000 not assigned to company code 0001',
-    'Tax code V1 is not valid for country ZA',
-  ]
-  return errors[Math.floor(Math.random() * errors.length)]
 }

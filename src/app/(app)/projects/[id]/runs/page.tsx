@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   ArrowLeft, Play, TestTube, CheckCircle, XCircle, AlertTriangle,
-  Loader2, Download, RefreshCw, Clock, GitCompareArrows,
+  Loader2, Download, RefreshCw, Clock, GitCompareArrows, ShieldQuestion,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
@@ -24,14 +25,18 @@ interface RunRecord {
 }
 
 interface Run {
-  id: string; type: 'SIMULATION' | 'MIGRATION'; status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  id: string; type: 'SIMULATION' | 'MIGRATION'; status: 'PENDING' | 'AWAITING_APPROVAL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
   totalRecords: number; successCount: number; errorCount: number; warningCount: number
   startedAt?: string; completedAt?: string; createdAt: string; records: RunRecord[]
+  approvalNote?: string | null
 }
 
 export default function RunsPage() {
   const params = useParams<{ id: string }>()
   const { toast } = useToast()
+  const { data: sessionData } = useSession()
+  const isAdmin = sessionData?.user.role === 'ADMIN'
+  const [approving, setApproving] = useState(false)
   const [runs, setRuns] = useState<Run[]>([])
   const [loading, setLoading] = useState(true)
   const [launching, setLaunching] = useState(false)
@@ -74,9 +79,34 @@ export default function RunsPage() {
       const run = await res.json()
       setRuns((prev) => [run, ...prev])
       setSelectedRun(run)
-      toast({ title: `${type === 'SIMULATION' ? 'Simulation' : 'Migration'} started`, description: 'Processing records…' })
+      if (run.status === 'AWAITING_APPROVAL') {
+        toast({ title: 'Submitted for approval', description: 'An admin must approve this migration run before it executes.' })
+      } else {
+        toast({ title: `${type === 'SIMULATION' ? 'Simulation' : 'Migration'} started`, description: 'Processing records…' })
+      }
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast({ title: 'Could not start run', description: d.error, variant: 'destructive' })
     }
     setLaunching(false)
+  }
+
+  async function decideRun(runId: string, decision: 'approve' | 'reject') {
+    const note = decision === 'reject' ? (window.prompt('Optional reason for rejecting:') ?? '') : ''
+    setApproving(true)
+    const res = await fetch(`/api/projects/${params.id}/runs/${runId}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision, note }),
+    })
+    if (res.ok) {
+      toast({ title: decision === 'approve' ? 'Run approved — executing' : 'Run rejected' })
+      await fetchRuns()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast({ title: 'Action failed', description: d.error, variant: 'destructive' })
+    }
+    setApproving(false)
   }
 
   function downloadErrors(run: Run) {
@@ -309,7 +339,29 @@ export default function RunsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {selectedRun.status === 'RUNNING' || selectedRun.status === 'PENDING' ? (
+                {selectedRun.status === 'AWAITING_APPROVAL' ? (
+                  <div className="text-center py-8">
+                    <ShieldQuestion className="w-8 h-8 mx-auto text-yellow-500 mb-3" />
+                    <p className="text-gray-700 text-sm font-medium">Awaiting admin approval</p>
+                    <p className="text-xs text-gray-400 mt-1 mb-4">This migration run won&apos;t execute until an admin approves it.</p>
+                    {isAdmin && (
+                      <div className="flex items-center justify-center gap-2">
+                        <Button size="sm" variant="outline" className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50" disabled={approving} onClick={() => decideRun(selectedRun.id, 'reject')}>
+                          <XCircle className="w-3.5 h-3.5" /> Reject
+                        </Button>
+                        <Button size="sm" className="gap-1.5 bg-green-600 hover:bg-green-700" disabled={approving} onClick={() => decideRun(selectedRun.id, 'approve')}>
+                          {approving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />} Approve & Run
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : selectedRun.status === 'CANCELLED' ? (
+                  <div className="text-center py-8">
+                    <XCircle className="w-8 h-8 mx-auto text-gray-400 mb-3" />
+                    <p className="text-gray-700 text-sm font-medium">Run rejected</p>
+                    {selectedRun.approvalNote && <p className="text-xs text-gray-500 mt-1">Reason: {selectedRun.approvalNote}</p>}
+                  </div>
+                ) : selectedRun.status === 'RUNNING' || selectedRun.status === 'PENDING' ? (
                   <div className="text-center py-8">
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#1e3a5f] mb-3" />
                     <p className="text-gray-500 text-sm">Processing records…</p>
@@ -427,9 +479,11 @@ function DiffStat({ label, a, b, lower, suffix = '' }: { label: string; a: numbe
 function RunStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'info' }> = {
     PENDING: { label: 'Pending', variant: 'secondary' },
+    AWAITING_APPROVAL: { label: 'Awaiting approval', variant: 'warning' },
     RUNNING: { label: 'Running', variant: 'info' },
     COMPLETED: { label: 'Completed', variant: 'success' },
     FAILED: { label: 'Failed', variant: 'default' },
+    CANCELLED: { label: 'Rejected', variant: 'secondary' },
   }
   const s = map[status] ?? { label: status, variant: 'secondary' }
   return <Badge variant={s.variant} className="text-xs">{s.label}</Badge>

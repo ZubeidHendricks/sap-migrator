@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Activity, FolderKanban, Play, Users, Upload, Settings, KeyRound, Server, ArrowDownCircle, Boxes } from 'lucide-react'
+import { Activity, FolderKanban, Play, Users, Upload, Settings, KeyRound, Server, ArrowDownCircle, Boxes, CheckCircle, XCircle } from 'lucide-react'
 
 interface Log {
   id: string
@@ -36,6 +36,9 @@ const ACTION_META: Record<string, { label: string; icon: typeof Activity; color:
   'object.restrictions_changed': { label: 'Changed field access', icon: Settings,       color: 'text-purple-500' },
   'branding.updated':     { label: 'Updated branding',        icon: Settings,          color: 'text-blue-500' },
   'object.assigned':      { label: 'Assigned an object',      icon: Users,             color: 'text-blue-500' },
+  'run.submitted':        { label: 'Submitted run for approval', icon: Play,           color: 'text-yellow-500' },
+  'run.approved':         { label: 'Approved a run',          icon: CheckCircle,       color: 'text-green-500' },
+  'run.rejected':         { label: 'Rejected a run',          icon: XCircle,           color: 'text-red-500' },
 }
 
 function formatTime(iso: string) {
