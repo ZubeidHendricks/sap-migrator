@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { resolveObject } from '@/lib/object-catalog'
 import { parseXmlSpreadsheet, validateRows } from '@/lib/validation-rules'
 import { profileRows } from '@/lib/data-profile'
+import { analyzeQuality } from '@/lib/anomaly'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -40,6 +41,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const parsed = objectDef ? parseXmlSpreadsheet(text) : null
   const validation = objectDef && parsed ? validateRows(objectDef, parsed) : null
   const profile = objectDef && parsed ? profileRows(objectDef, parsed) : null
+  const quality = objectDef && parsed ? analyzeQuality(objectDef, parsed) : null
   const dataRows = validation
     ? validation.totalRows
     : Math.max(0, (text.match(/<Row/g)?.length ?? 0) - 2)
@@ -63,6 +65,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           } as unknown as Prisma.InputJsonValue)
         : undefined,
       profile: profile ? (profile as unknown as Prisma.InputJsonValue) : undefined,
+      qualityFlags: quality ? (quality as unknown as Prisma.InputJsonValue) : undefined,
     },
   })
 

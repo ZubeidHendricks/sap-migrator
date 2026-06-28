@@ -32,6 +32,12 @@ interface FieldProfile {
   numeric?: { min: number; max: number; avg: number }
 }
 interface DataProfile { rowCount: number; fields: FieldProfile[] }
+interface QualityFlags {
+  keyField: string | null; keyLabel: string | null
+  duplicates: { value: string; rows: number[]; count: number }[]
+  duplicateRowCount: number
+  anomalies: { field: string; row: number; value: string; kind: string; detail: string }[]
+}
 
 interface Member { id: string; name: string | null; email: string }
 interface CommentItem { id: string; body: string; createdAt: string; author: { id: string; name: string | null; email: string } }
@@ -93,6 +99,7 @@ export default function TemplatesPage() {
   const [profileFor, setProfileFor] = useState<ProjectObject | null>(null)
   const [profileBusy, setProfileBusy] = useState(false)
   const [profileData, setProfileData] = useState<DataProfile | null>(null)
+  const [qualityData, setQualityData] = useState<QualityFlags | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => {
@@ -135,9 +142,9 @@ export default function TemplatesPage() {
   }
 
   async function openProfile(obj: ProjectObject) {
-    setProfileFor(obj); setProfileData(null); setProfileBusy(true)
+    setProfileFor(obj); setProfileData(null); setQualityData(null); setProfileBusy(true)
     const res = await fetch(`/api/projects/${params.id}/objects/profile?objectKey=${obj.objectKey}`)
-    if (res.ok) { const d = await res.json(); setProfileData(d.profile) }
+    if (res.ok) { const d = await res.json(); setProfileData(d.profile); setQualityData(d.qualityFlags ?? null) }
     setProfileBusy(false)
   }
 
@@ -527,7 +534,43 @@ export default function TemplatesPage() {
           ) : (
             <div className="space-y-3">
               <p className="text-xs text-gray-500">{profileData.rowCount.toLocaleString()} data rows analyzed</p>
-              <div className="border rounded-lg divide-y max-h-[28rem] overflow-y-auto">
+
+              {qualityData && (qualityData.duplicates.length > 0 || qualityData.anomalies.length > 0) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Data quality flags
+                  </p>
+                  {qualityData.duplicates.length > 0 && (
+                    <div className="text-xs text-amber-800">
+                      <p className="font-medium">{qualityData.duplicateRowCount} rows with duplicate {qualityData.keyLabel ?? 'key'} ({qualityData.keyField})</p>
+                      <ul className="mt-0.5 space-y-0.5">
+                        {qualityData.duplicates.slice(0, 4).map((g, i) => (
+                          <li key={i} className="opacity-90"><span className="font-mono">{g.value}</span> — {g.count}× (rows {g.rows.slice(0, 6).join(', ')}{g.rows.length > 6 ? '…' : ''})</li>
+                        ))}
+                        {qualityData.duplicates.length > 4 && <li className="opacity-70">+{qualityData.duplicates.length - 4} more</li>}
+                      </ul>
+                    </div>
+                  )}
+                  {qualityData.anomalies.length > 0 && (
+                    <div className="text-xs text-amber-800">
+                      <p className="font-medium">{qualityData.anomalies.length} anomal{qualityData.anomalies.length !== 1 ? 'ies' : 'y'}</p>
+                      <ul className="mt-0.5 space-y-0.5">
+                        {qualityData.anomalies.slice(0, 5).map((a, i) => (
+                          <li key={i} className="opacity-90">row {a.row} <span className="font-mono">{a.field}</span>=<span className="font-mono">{a.value}</span> — {a.detail}</li>
+                        ))}
+                        {qualityData.anomalies.length > 5 && <li className="opacity-70">+{qualityData.anomalies.length - 5} more</li>}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              {qualityData && qualityData.duplicates.length === 0 && qualityData.anomalies.length === 0 && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-2.5 text-xs text-green-800 flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5" /> No duplicate keys or anomalies detected
+                </div>
+              )}
+
+              <div className="border rounded-lg divide-y max-h-[24rem] overflow-y-auto">
                 {profileData.fields.map((fp) => (
                   <div key={fp.name} className="px-3 py-2.5">
                     <div className="flex items-center gap-2 mb-1">

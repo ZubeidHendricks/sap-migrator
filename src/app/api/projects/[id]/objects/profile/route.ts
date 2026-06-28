@@ -19,9 +19,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const template = await prisma.migrationTemplate.findFirst({
     where: { projectObjectId: obj.id },
     orderBy: { createdAt: 'desc' },
-    select: { profile: true, createdAt: true, filename: true },
+    select: { profile: true, qualityFlags: true, createdAt: true, filename: true },
   })
 
-  if (!template?.profile) return NextResponse.json({ profile: null })
-  return NextResponse.json({ profile: template.profile, uploadedAt: template.createdAt, filename: template.filename })
+  if (!template?.profile) return NextResponse.json({ profile: null, qualityFlags: null })
+  return NextResponse.json({ profile: template.profile, qualityFlags: template.qualityFlags ?? null, uploadedAt: template.createdAt, filename: template.filename })
 }

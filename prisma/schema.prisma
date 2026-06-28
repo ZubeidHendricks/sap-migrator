@@ -310,6 +310,7 @@ model MigrationTemplate {
   status           String        @default("UPLOADED")
   validationErrors Json?
   profile          Json?         // per-field data profile (data-profile.ts)
+  qualityFlags     Json?         // duplicate keys + anomalies (anomaly.ts)
   createdAt        DateTime      @default(now())
 }
 
