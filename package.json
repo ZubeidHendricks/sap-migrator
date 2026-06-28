@@ -36,6 +36,7 @@
     "lucide-react": "^0.390.0",
     "next": "14.2.4",
     "next-auth": "^4.24.7",
+    "pdf-lib": "^1.17.1",
     "react": "^18",
     "react-dom": "^18",
     "resend": "^6.16.0",

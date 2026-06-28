@@ -31,6 +31,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   })
   if (!obj) return NextResponse.json({ error: 'Object not found' }, { status: 404 })
 
+  // Field-level access: only Admins may map fields flagged as restricted.
+  const restricted = Array.isArray(obj.restrictedFields) ? (obj.restrictedFields as string[]) : []
+  if (restricted.includes(fieldName) && session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: `Field ${fieldName} is restricted to Admins` }, { status: 403 })
+  }
+
   const mapping = await prisma.valueMapping.create({
     data: { projectObjectId, fieldName, fieldLabel, sourceValue, targetValue },
   })

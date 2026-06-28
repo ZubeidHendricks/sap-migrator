@@ -44,11 +44,13 @@ enum RecordStatus {
 }
 
 model Organization {
-  id        String     @id @default(cuid())
-  name      String
-  slug      String     @unique
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id         String     @id @default(cuid())
+  name       String
+  slug       String     @unique
+  brandColor String?    // hex accent color for white-label branding
+  logoUrl    String?    // logo shown in the app sidebar
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
   users         User[]
   projects      Project[]
   auditLogs     AuditLog[]
@@ -242,6 +244,7 @@ model ProjectObject {
   category    String
   status      String              @default("PENDING")
   recordCount Int?
+  restrictedFields Json?          // field names only Admins may map (field-level access)
   mappings    ValueMapping[]
   templates   MigrationTemplate[]
   runRecords  RunRecord[]

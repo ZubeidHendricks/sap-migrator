@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,11 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const [branding, setBranding] = useState<{ name?: string; brandColor?: string | null; logoUrl?: string | null }>({})
+
+  useEffect(() => {
+    fetch('/api/organizations/branding').then((r) => (r.ok ? r.json() : null)).then((d) => d && setBranding(d)).catch(() => {})
+  }, [])
 
   const initials = session?.user?.name
     ?.split(' ')
@@ -34,14 +40,18 @@ export function Sidebar() {
     .toUpperCase()
     .slice(0, 2) ?? '??'
 
+  const bg = branding.brandColor || '#1e3a5f'
+
   return (
-    <aside className="fixed inset-y-0 left-0 w-60 bg-[#1e3a5f] text-white flex flex-col z-30">
+    <aside className="fixed inset-y-0 left-0 w-60 text-white flex flex-col z-30" style={{ backgroundColor: bg }}>
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-white/10">
-        <div className="w-7 h-7 rounded-md bg-white/15 flex items-center justify-center">
-          <Database className="w-4 h-4" />
+        <div className="w-7 h-7 rounded-md bg-white/15 flex items-center justify-center overflow-hidden">
+          {branding.logoUrl
+            ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={branding.logoUrl} alt="logo" className="w-full h-full object-contain" />
+            : <Database className="w-4 h-4" />}
         </div>
-        <span className="font-bold text-sm">SAP Migrator</span>
+        <span className="font-bold text-sm truncate">{branding.name || 'SAP Migrator'}</span>
       </div>
 
       {/* Org badge */}

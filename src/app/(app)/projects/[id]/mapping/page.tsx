@@ -20,8 +20,10 @@ import { ArrowLeft, Plus, Trash2, Loader2, MapPin, ArrowRight, Download, Upload,
 import { type MigrationObject } from '@/lib/migration-objects'
 import { useToast } from '@/components/ui/use-toast'
 import { useRef } from 'react'
+import { useSession } from 'next-auth/react'
+import { Lock } from 'lucide-react'
 
-interface ProjectObject { id: string; objectKey: string; objectName: string; category: string }
+interface ProjectObject { id: string; objectKey: string; objectName: string; category: string; restrictedFields?: string[] }
 interface Mapping { id: string; fieldName: string; fieldLabel?: string; sourceValue: string; targetValue: string; projectObjectId: string }
 interface FieldSuggestion { field: string; label: string; required: boolean; score: number; reason: string }
 interface HeaderSuggestion { sourceHeader: string; suggestions: FieldSuggestion[] }
@@ -29,7 +31,11 @@ interface HeaderSuggestion { sourceHeader: string; suggestions: FieldSuggestion[
 export default function MappingPage() {
   const params = useParams<{ id: string }>()
   const { toast } = useToast()
+  const { data: sessionData } = useSession()
+  const isAdmin = sessionData?.user.role === 'ADMIN'
   const [objects, setObjects] = useState<ProjectObject[]>([])
+  const [accessOpen, setAccessOpen] = useState(false)
+  const [savingAccess, setSavingAccess] = useState(false)
   const [selectedObj, setSelectedObj] = useState<ProjectObject | null>(null)
   const [mappings, setMappings] = useState<Mapping[]>([])
   const [loadingObjs, setLoadingObjs] = useState(true)
@@ -112,6 +118,25 @@ export default function MappingPage() {
       toast({ title: 'Could not generate suggestions', variant: 'destructive' })
     }
     setSuggesting(false)
+  }
+
+  async function toggleRestricted(fieldName: string) {
+    if (!selectedObj) return
+    const current = selectedObj.restrictedFields ?? []
+    const next = current.includes(fieldName) ? current.filter((f) => f !== fieldName) : [...current, fieldName]
+    setSavingAccess(true)
+    const res = await fetch(`/api/projects/${params.id}/objects/restrictions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objectId: selectedObj.id, restrictedFields: next }),
+    })
+    if (res.ok) {
+      setObjects((os) => os.map((o) => o.id === selectedObj.id ? { ...o, restrictedFields: next } : o))
+      setSelectedObj((o) => o ? { ...o, restrictedFields: next } : o)
+    } else {
+      toast({ title: 'Could not update field access', variant: 'destructive' })
+    }
+    setSavingAccess(false)
   }
 
   async function handleImport(file: File) {
@@ -211,13 +236,23 @@ export default function MappingPage() {
                     {mappings.length} value mapping{mappings.length !== 1 ? 's' : ''}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => setDialogOpen(true)}
-                  className="bg-[#1e3a5f] hover:bg-[#2a4f7c] gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Mapping
-                </Button>
+                <div className="flex items-center gap-2">
+                  {isAdmin && (
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAccessOpen(true)}>
+                      <Lock className="w-3.5 h-3.5" /> Field Access
+                      {(selectedObj.restrictedFields?.length ?? 0) > 0 && (
+                        <Badge variant="secondary" className="ml-1 text-[10px] py-0">{selectedObj.restrictedFields!.length}</Badge>
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={() => setDialogOpen(true)}
+                    className="bg-[#1e3a5f] hover:bg-[#2a4f7c] gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Mapping
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingMaps ? (
@@ -301,11 +336,15 @@ export default function MappingPage() {
                     <SelectValue placeholder="Select a field…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {objDef.fields.map((f) => (
-                      <SelectItem key={f.name} value={f.name}>
-                        {f.label} <span className="text-gray-400 font-mono text-xs ml-1">({f.name})</span>
-                      </SelectItem>
-                    ))}
+                    {objDef.fields.map((f) => {
+                      const locked = (selectedObj?.restrictedFields ?? []).includes(f.name) && !isAdmin
+                      return (
+                        <SelectItem key={f.name} value={f.name} disabled={locked}>
+                          {f.label} <span className="text-gray-400 font-mono text-xs ml-1">({f.name})</span>
+                          {locked && <span className="text-gray-400 ml-1">· Admin only</span>}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               ) : (
@@ -390,6 +429,36 @@ export default function MappingPage() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Field access (admin) */}
+      <Dialog open={accessOpen} onOpenChange={setAccessOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Lock className="w-4 h-4 text-[#1e3a5f]" /> Field Access</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500">
+            Restrict sensitive fields on <span className="font-medium text-gray-700">{selectedObj?.objectName}</span> to Admins.
+            Migrators won&apos;t be able to add value mappings for restricted fields.
+          </p>
+          {objDef && (
+            <div className="max-h-80 overflow-y-auto border rounded-lg divide-y mt-2">
+              {objDef.fields.map((f) => {
+                const restricted = (selectedObj?.restrictedFields ?? []).includes(f.name)
+                return (
+                  <label key={f.name} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" checked={restricted} disabled={savingAccess} onChange={() => toggleRestricted(f.name)} className="rounded border-gray-300" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-900">{f.label}</span>
+                      <span className="text-xs text-gray-400 font-mono ml-2">{f.name}</span>
+                    </div>
+                    {restricted && <span className="text-xs text-[#1e3a5f] flex items-center gap-1"><Lock className="w-3 h-3" />Admin only</span>}
+                  </label>
+                )
+              })}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

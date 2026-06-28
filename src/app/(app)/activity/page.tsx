@@ -33,6 +33,8 @@ const ACTION_META: Record<string, { label: string; icon: typeof Activity; color:
   'apikey.revoked':       { label: 'Revoked API key',        icon: KeyRound,          color: 'text-red-500' },
   'custom_object.created':{ label: 'Created custom object',   icon: Boxes,             color: 'text-blue-500' },
   'custom_object.deleted':{ label: 'Deleted custom object',   icon: Boxes,             color: 'text-red-500' },
+  'object.restrictions_changed': { label: 'Changed field access', icon: Settings,       color: 'text-purple-500' },
+  'branding.updated':     { label: 'Updated branding',        icon: Settings,          color: 'text-blue-500' },
 }
 
 function formatTime(iso: string) {

@@ -188,6 +188,9 @@ export default function ProjectSettingsPage() {
             <Button variant="outline" onClick={handleExport} className="gap-2">
               <Download className="w-4 h-4" /> Export as CSV
             </Button>
+            <Button variant="outline" onClick={() => { window.location.href = `/api/projects/${id}/export/pdf` }} className="gap-2">
+              <Download className="w-4 h-4" /> Export as PDF
+            </Button>
             <Button variant="outline" onClick={handleClone} className="gap-2">
               <Copy className="w-4 h-4" /> Clone Project
             </Button>
