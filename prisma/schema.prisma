@@ -309,6 +309,7 @@ model MigrationTemplate {
   rowCount         Int?
   status           String        @default("UPLOADED")
   validationErrors Json?
+  profile          Json?         // per-field data profile (data-profile.ts)
   createdAt        DateTime      @default(now())
 }
 

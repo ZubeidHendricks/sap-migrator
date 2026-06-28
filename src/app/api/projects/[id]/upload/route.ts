@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth-options'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { resolveObject } from '@/lib/object-catalog'
-import { validateSpreadsheet } from '@/lib/validation-rules'
+import { parseXmlSpreadsheet, validateRows } from '@/lib/validation-rules'
+import { profileRows } from '@/lib/data-profile'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -35,7 +36,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // Validate the uploaded data against the object's SAP field rules.
   const text = await file.text()
   const objectDef = await resolveObject(objectKey, session.user.organizationId)
-  const validation = objectDef ? validateSpreadsheet(objectDef, text) : null
+  // Parse once, then validate + profile from the same parsed spreadsheet.
+  const parsed = objectDef ? parseXmlSpreadsheet(text) : null
+  const validation = objectDef && parsed ? validateRows(objectDef, parsed) : null
+  const profile = objectDef && parsed ? profileRows(objectDef, parsed) : null
   const dataRows = validation
     ? validation.totalRows
     : Math.max(0, (text.match(/<Row/g)?.length ?? 0) - 2)
@@ -58,6 +62,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
             issues: validation.issues.slice(0, 100),
           } as unknown as Prisma.InputJsonValue)
         : undefined,
+      profile: profile ? (profile as unknown as Prisma.InputJsonValue) : undefined,
     },
   })
 

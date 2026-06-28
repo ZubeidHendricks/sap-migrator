@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea'
 import {
   ArrowLeft, Download, Upload, FileSpreadsheet, Info, CheckCircle,
-  FileCheck, Loader2, AlertTriangle, MessageSquare, Send, Sparkles, ArrowRight,
+  FileCheck, Loader2, AlertTriangle, MessageSquare, Send, Sparkles, ArrowRight, BarChart3,
 } from 'lucide-react'
 
 interface ProjectObject {
@@ -23,6 +23,15 @@ interface ProjectObject {
   status: string
   assignedToId?: string | null
 }
+
+interface FieldProfile {
+  name: string; label: string; type: string; required: boolean
+  fillRate: number; blankCount: number; distinctCount: number
+  minLength: number; maxLength: number
+  topValues: { value: string; count: number }[]
+  numeric?: { min: number; max: number; avg: number }
+}
+interface DataProfile { rowCount: number; fields: FieldProfile[] }
 
 interface Member { id: string; name: string | null; email: string }
 interface CommentItem { id: string; body: string; createdAt: string; author: { id: string; name: string | null; email: string } }
@@ -81,6 +90,9 @@ export default function TemplatesPage() {
   const [fixBusy, setFixBusy] = useState(false)
   const [fixEngine, setFixEngine] = useState<'ai' | 'rules' | null>(null)
   const [fixes, setFixes] = useState<{ row: number; field: string; value: string; suggested: string; explanation: string }[]>([])
+  const [profileFor, setProfileFor] = useState<ProjectObject | null>(null)
+  const [profileBusy, setProfileBusy] = useState(false)
+  const [profileData, setProfileData] = useState<DataProfile | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => {
@@ -120,6 +132,13 @@ export default function TemplatesPage() {
     })
     if (res.ok) { const d = await res.json(); setFixes(d.fixes); setFixEngine(d.engine ?? 'rules') }
     setFixBusy(false)
+  }
+
+  async function openProfile(obj: ProjectObject) {
+    setProfileFor(obj); setProfileData(null); setProfileBusy(true)
+    const res = await fetch(`/api/projects/${params.id}/objects/profile?objectKey=${obj.objectKey}`)
+    if (res.ok) { const d = await res.json(); setProfileData(d.profile) }
+    setProfileBusy(false)
   }
 
   async function openComments(obj: ProjectObject) {
@@ -300,6 +319,15 @@ export default function TemplatesPage() {
                       >
                         <MessageSquare className="w-3.5 h-3.5" /> Discuss
                       </button>
+                      {latestUpload && (
+                        <button
+                          onClick={() => openProfile(obj)}
+                          className="h-8 px-2.5 rounded-md border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 shrink-0"
+                          title="Data profile"
+                        >
+                          <BarChart3 className="w-3.5 h-3.5" /> Profile
+                        </button>
+                      )}
                     </div>
 
                     {/* Latest upload info + validation summary */}
@@ -483,6 +511,51 @@ export default function TemplatesPage() {
           </Card>
         </>
       )}
+
+      {/* Data profile dialog */}
+      <Dialog open={!!profileFor} onOpenChange={(o) => !o && setProfileFor(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-[#1e3a5f]" /> Data Profile — {profileFor?.objectName}
+            </DialogTitle>
+          </DialogHeader>
+          {profileBusy ? (
+            <div className="py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" /> Profiling…</div>
+          ) : !profileData ? (
+            <p className="text-sm text-gray-400 text-center py-6">No profile yet — upload data for this object first.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">{profileData.rowCount.toLocaleString()} data rows analyzed</p>
+              <div className="border rounded-lg divide-y max-h-[28rem] overflow-y-auto">
+                {profileData.fields.map((fp) => (
+                  <div key={fp.name} className="px-3 py-2.5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs font-medium text-gray-900">{fp.name}</span>
+                      <span className="text-xs text-gray-400">{fp.label}</span>
+                      {fp.required && <span className="text-[10px] px-1 rounded bg-gray-100 text-gray-500">required</span>}
+                      <span className="ml-auto text-xs text-gray-400">{fp.distinctCount} distinct</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div className={`h-full ${fp.fillRate >= 1 ? 'bg-green-500' : fp.required && fp.fillRate < 1 ? 'bg-red-400' : 'bg-[#1e3a5f]'}`} style={{ width: `${Math.round(fp.fillRate * 100)}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-500 w-28 text-right">{Math.round(fp.fillRate * 100)}% filled{fp.blankCount > 0 ? ` · ${fp.blankCount} blank` : ''}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-gray-400 flex-wrap">
+                      <span>len {fp.minLength}–{fp.maxLength}</span>
+                      {fp.numeric && <span>range {fp.numeric.min}–{fp.numeric.max} (avg {fp.numeric.avg})</span>}
+                      {fp.topValues.length > 0 && (
+                        <span className="truncate">top: {fp.topValues.slice(0, 3).map((t) => `${t.value || '∅'}×${t.count}`).join(', ')}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* AI fix suggestions dialog */}
       <Dialog open={fixesOpen} onOpenChange={setFixesOpen}>
