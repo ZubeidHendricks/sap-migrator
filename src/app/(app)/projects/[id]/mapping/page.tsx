@@ -51,6 +51,14 @@ export default function MappingPage() {
   const [suggestions, setSuggestions] = useState<HeaderSuggestion[] | null>(null)
   const [suggestEngine, setSuggestEngine] = useState<'ai' | 'rules' | null>(null)
   const [catalog, setCatalog] = useState<MigrationObject[]>([])
+  // Value-mapping assistant
+  const [valOpen, setValOpen] = useState(false)
+  const [valField, setValField] = useState('')
+  const [valInput, setValInput] = useState('')
+  const [valBusy, setValBusy] = useState(false)
+  const [valEngine, setValEngine] = useState<'ai' | 'rules' | null>(null)
+  const [valSuggestions, setValSuggestions] = useState<{ sourceValue: string; targetValue: string; confidence: number; reason: string }[] | null>(null)
+  const [valChosen, setValChosen] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     Promise.all([
@@ -139,6 +147,46 @@ export default function MappingPage() {
     setSavingAccess(false)
   }
 
+  async function runValueSuggest() {
+    if (!selectedObj || !valField) return
+    const values = valInput.split(/[\n,;\t]+/).map((v) => v.trim()).filter(Boolean)
+    if (values.length === 0) return
+    setValBusy(true); setValSuggestions(null)
+    const res = await fetch(`/api/projects/${params.id}/value-suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objectKey: selectedObj.objectKey, fieldName: valField, sourceValues: values }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setValSuggestions(data.suggestions)
+      setValEngine(data.engine ?? 'rules')
+      setValChosen(new Set(data.suggestions.map((_: unknown, i: number) => i)))
+    } else {
+      toast({ title: 'Could not generate suggestions', variant: 'destructive' })
+    }
+    setValBusy(false)
+  }
+
+  async function addChosenValueMappings() {
+    if (!selectedObj || !valSuggestions) return
+    setValBusy(true)
+    const field = objDef?.fields.find((f) => f.name === valField)
+    const chosen = valSuggestions.filter((_, i) => valChosen.has(i))
+    const created: Mapping[] = []
+    for (const s of chosen) {
+      const res = await fetch(`/api/projects/${params.id}/mappings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectObjectId: selectedObj.id, fieldName: valField, fieldLabel: field?.label, sourceValue: s.sourceValue, targetValue: s.targetValue }),
+      })
+      if (res.ok) created.push(await res.json())
+    }
+    setMappings((prev) => [...prev, ...created])
+    setValBusy(false); setValOpen(false)
+    toast({ title: `Added ${created.length} value mapping${created.length !== 1 ? 's' : ''}` })
+  }
+
   async function handleImport(file: File) {
     setImporting(true)
     const fd = new FormData()
@@ -181,6 +229,9 @@ export default function MappingPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 border-[#1e3a5f]/30 text-[#1e3a5f]" disabled={!selectedObj} onClick={() => { setSuggestions(null); setHeaderInput(''); setSuggestOpen(true) }}>
             <Sparkles className="w-3.5 h-3.5" /> Suggest Fields
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5 border-[#1e3a5f]/30 text-[#1e3a5f]" disabled={!selectedObj} onClick={() => { setValSuggestions(null); setValInput(''); setValField(objDef?.fields[0]?.name ?? ''); setValOpen(true) }}>
+            <Sparkles className="w-3.5 h-3.5" /> Suggest Values
           </Button>
           <input ref={importRef} type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = '' }} />
           <Button variant="outline" size="sm" className="gap-1.5" disabled={importing} onClick={() => importRef.current?.click()}>
@@ -459,6 +510,62 @@ export default function MappingPage() {
               })}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Value mapping assistant */}
+      <Dialog open={valOpen} onOpenChange={setValOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#1e3a5f]" /> Suggest Value Mappings
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Field</Label>
+                <select value={valField} onChange={(e) => setValField(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 text-sm px-2">
+                  {objDef?.fields.map((f) => <option key={f.name} value={f.name}>{f.label} ({f.name})</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Source values (one per line or comma-separated)</Label>
+              <Textarea rows={3} placeholder={"US Dollar\nEuro\nBritish Pound"} value={valInput} onChange={(e) => setValInput(e.target.value)} />
+            </div>
+            <Button onClick={runValueSuggest} disabled={valBusy || !valInput.trim() || !valField} className="bg-[#1e3a5f] hover:bg-[#2a4f7c] gap-2">
+              {valBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</> : <><Sparkles className="w-4 h-4" /> Suggest SAP Values</>}
+            </Button>
+
+            {valSuggestions && valEngine && (
+              <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                {valEngine === 'ai' ? <><Sparkles className="w-3 h-3 text-[#1e3a5f]" /> Generated by Claude AI</> : 'Generated by built-in smart matching'}
+              </p>
+            )}
+            {valSuggestions && (
+              valSuggestions.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No confident suggestions — map manually.</p>
+              ) : (
+                <>
+                  <div className="border rounded-lg divide-y max-h-72 overflow-y-auto">
+                    {valSuggestions.map((s, i) => (
+                      <label key={i} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                        <input type="checkbox" checked={valChosen.has(i)} onChange={() => setValChosen((c) => { const n = new Set(c); n.has(i) ? n.delete(i) : n.add(i); return n })} className="rounded border-gray-300" />
+                        <span className="text-sm text-gray-700 font-mono">{s.sourceValue}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                        <span className="text-sm font-mono font-medium text-gray-900">{s.targetValue || '∅'}</span>
+                        <span className="text-xs text-gray-400 ml-auto truncate" title={s.reason}>{Math.round(s.confidence * 100)}%</span>
+                      </label>
+                    ))}
+                  </div>
+                  <Button onClick={addChosenValueMappings} disabled={valBusy || valChosen.size === 0} className="w-full bg-[#1e3a5f] hover:bg-[#2a4f7c]">
+                    {valBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : `Add ${valChosen.size} mapping${valChosen.size !== 1 ? 's' : ''}`}
+                  </Button>
+                </>
+              )
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
