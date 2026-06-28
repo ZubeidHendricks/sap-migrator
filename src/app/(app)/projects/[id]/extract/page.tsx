@@ -31,6 +31,7 @@ interface ExtractJob {
   createdAt: string
   completedAt: string | null
   objectKeys: string[]
+  outputCsv?: string | null
 }
 
 const TARGET_TYPES = [
@@ -266,6 +267,14 @@ export default function ExtractPage() {
                         </div>
                         {job.status === 'FAILED' && job.errorMessage && (
                           <p className="text-xs text-red-600 mt-1">{job.errorMessage}</p>
+                        )}
+                        {job.status === 'COMPLETED' && job.targetType === 'CSV_DOWNLOAD' && (
+                          <a
+                            href={`/api/projects/${params.id}/extract/${job.id}/download`}
+                            className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-[#1e3a5f] hover:underline"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Download CSV
+                          </a>
                         )}
                       </div>
                       <div className="text-right shrink-0">

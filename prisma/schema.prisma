@@ -188,6 +188,7 @@ model DataExtractJob {
   status         ExtractStatus   @default(PENDING)
   rowsExtracted  Int             @default(0)
   errorMessage   String?
+  outputCsv      String?         @db.Text  // CSV result for CSV_DOWNLOAD jobs
   startedAt      DateTime?
   completedAt    DateTime?
   createdAt      DateTime        @default(now())
