@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { ProjectInsightsCard } from '@/components/project-insights-card'
+import { ProjectAsk } from '@/components/project-ask'
 
 import { SettingsIcon, ArrowDownCircle } from 'lucide-react'
 
@@ -127,6 +128,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
 
       {/* Migration intelligence (Phase 4) */}
       <ProjectInsightsCard projectId={project.id} />
+
+      {/* Ask AI (Phase 7 — NL query) */}
+      <ProjectAsk projectId={project.id} />
 
       {/* Nav cards */}
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
